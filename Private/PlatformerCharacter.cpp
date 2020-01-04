@@ -1,11 +1,13 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 #include "PlatformerCharacter.h"
-#include "HeadMountedDisplayFunctionLibrary.h"
 #include "PlatformerPlayerController.h"
 #include "Kismet/GameplayStatics.h"
 #include "Kismet/KismetSystemLibrary.h"
 #include "Camera/CameraComponent.h"
+#include "Components/SkeletalMeshComponent.h"
+#include "GameFramework/CharacterMovementComponent.h"
+#include "Misc/ConfigCacheIni.h"
 #include "Sound/SoundCue.h"
 #include "TimerManager.h"
 #include "Interactable.h"
@@ -13,6 +15,12 @@
 // Sets default values
 APlatformerCharacter::APlatformerCharacter()
 	:
+	// Air Dash
+	DashSpeed(200.0f),
+	bCanAirDash(true),
+	AirDashSound(nullptr),
+	// bAirDashIsCameraRelative(false)
+	// Shrink
 	bCanShrink(true),
 	ShrinkSound(nullptr),
 	SizeUpSound(nullptr),
@@ -22,6 +30,7 @@ APlatformerCharacter::APlatformerCharacter()
 	StandardTimeDilation(1.0f),
 	ShrinkCooldown(0.3f),
 	ShrinkCooldownHandle(),
+	// Interact
 	bCanInteract(true),
 	InteractionTraceLength(600.0f),
 	InteractionTraceCapsuleRadius(42.0f),
@@ -38,6 +47,20 @@ APlatformerCharacter::APlatformerCharacter()
 	// Set this character to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
 	PrimaryActorTick.bStartWithTickEnabled = false;
+	
+	// Load player-tweakable variables from the main game config file:
+	bool bTemp = false;
+	if (GConfig->GetBool(TEXT("F.Abilities.Air Dash"), TEXT("bAirDashIsCameraRelative"), bTemp, GGameIni))
+	{
+		bAirDashIsCameraRelative = bTemp;
+	}
+#if !UE_BUILD_SHIPPING
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("%s is not defined within %s"), GET_MEMBER_NAME_STRING_CHECKED(APlatformerCharacter, bAirDashIsCameraRelative), *GGameIni);
+	}
+#endif // !UE_BUILD_SHIPPING
+
 }
 
 // Called when the game starts or when spawned
@@ -59,24 +82,110 @@ void APlatformerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInpu
 {
 	Super::SetupPlayerInputComponent(PlayerInputComponent);
 
-	PlayerInputComponent->BindAction("ResetVR", IE_Pressed, this, &APlatformerCharacter::OnResetVR);
+	// Core movement
+	PlayerInputComponent->BindAxis("MoveForward", this, &APlatformerCharacter::MoveForward);
+	PlayerInputComponent->BindAxis("MoveRight", this, &APlatformerCharacter::MoveRight);
+
+	PlayerInputComponent->BindAction("FacePlayerDirection", IE_Pressed, this, &APlatformerCharacter::FacePlayerDirection);
 
 	PlayerInputComponent->BindAction("Jump", IE_Pressed, this, &ACharacter::Jump);
 	PlayerInputComponent->BindAction("Jump", IE_Released, this, &ACharacter::StopJumping);
 
+	// Abilities
+	PlayerInputComponent->BindAction("Air Dash", IE_Pressed, this, &APlatformerCharacter::AirDash);
 	PlayerInputComponent->BindAction("Shrink", IE_Pressed, this, &APlatformerCharacter::ToggleShrink);
 	PlayerInputComponent->BindAction("Interact", IE_Pressed, this, &APlatformerCharacter::TraceForInteractables);
+
 }
 
-void APlatformerCharacter::OnResetVR()
+void APlatformerCharacter::MoveForward(float Value)
 {
-	//UHeadMountedDisplayFunctionLibrary::ResetOrientationAndPosition();
+	if ((Controller != NULL) && (Value != 0.0f))
+	{
+		// find out which way is forward
+		const FRotator YawRotation(
+			0.0f,
+			Controller->GetControlRotation().Yaw,
+			0.0f
+		);
+
+		// get forward vector
+		const FVector Direction = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X);
+		AddMovementInput(Direction, Value);
+	}
+}
+
+void APlatformerCharacter::MoveRight(float Value)
+{
+	if ((Controller != NULL) && (Value != 0.0f))
+	{
+		// find out which way is right
+		const FRotator YawRotation(
+				0.0f, 
+				Controller->GetControlRotation().Yaw, 
+				0.0f
+			);
+
+		// get right vector 
+		const FVector Direction = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
+		// add movement in that direction
+		AddMovementInput(Direction, Value);
+	}
 }
 
 void APlatformerCharacter::FellOutOfWorld(const UDamageType & dmgType)
 {
 	// Don't call Super::FellOutOfWorld, as we don't want to destroy this actor
 	OnFellOutOfWorld();
+}
+
+void APlatformerCharacter::Landed(const FHitResult & Hit)
+{
+	// Reenable air dashing
+	bCanAirDash = true;
+}
+
+void APlatformerCharacter::FacePlayerDirection()
+{
+	// Get the mesh's right vector as a rotator
+	
+	GetController()->SetControlRotation(GetMesh()->GetRightVector().ToOrientationRotator());
+}
+
+void APlatformerCharacter::AirDash()
+{
+	const bool& bIsInAir = GetCharacterMovement()->IsFalling();
+	if (bCanAirDash && bIsInAir)
+	{		
+		if ((Controller != NULL) && (DashSpeed != 0.0f))
+		{
+			// find out which way is forward
+			const FRotator YawRotation(
+				0.0f,
+				Controller->GetControlRotation().Yaw,
+				0.0f
+			);
+
+			// Had to use the right vector because the default mesh defaultly faces right
+			const FVector Direction = 
+				!bAirDashIsCameraRelative ? 
+				GetMesh()->GetRightVector() : 
+				FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X);
+				
+			// Propell the character
+			LaunchCharacter(Direction*DashSpeed, false, true);
+
+			UGameplayStatics::PlaySoundAtLocation(this, AirDashSound, GetActorLocation());
+
+			// Disable air dashing until this character lands
+			bCanAirDash = false;
+		}
+	}
+}
+
+void APlatformerCharacter::SetCanAirDash(const bool bNewCanAirDash)
+{
+	bCanAirDash = bNewCanAirDash;
 }
 
 void APlatformerCharacter::ToggleShrink()
@@ -91,23 +200,17 @@ void APlatformerCharacter::ToggleShrink()
 			// If the player has unlocked the shrink ability,
 			if (PC->IsShrinkUnlocked())
 			{
-				float ScaleToApply = 0.0f;
-				USoundCue* SoundToPlay = nullptr;
-				float TimeDilationToApply = 0.0f;
-
-				const bool& bReturningToNormalSize = IsShrunk();
+				const bool& bReturningToNormalSize = IsShrunk(); // Use an alias for clearer code
+				
+				float ScaleToApply			= ShrunkScale;
+				USoundCue* SoundToPlay		= ShrinkSound;
+				float TimeDilationToApply	= ShrunkTimeDilation;
 
 				if (bReturningToNormalSize)
 				{
-					ScaleToApply = StandardScale;
-					SoundToPlay = SizeUpSound;
-					TimeDilationToApply = StandardTimeDilation;
-				}
-				else
-				{
-					ScaleToApply = ShrunkScale;
-					SoundToPlay = ShrinkSound;
-					TimeDilationToApply = ShrunkTimeDilation;
+					ScaleToApply			= StandardScale;
+					SoundToPlay				= SizeUpSound;
+					TimeDilationToApply		= StandardTimeDilation;
 				}
 
 				// Shrink or unshrink the player
@@ -127,7 +230,7 @@ void APlatformerCharacter::ToggleShrink()
 				// Put a cooldown on shrinking: reenable it after the cooldown.
 				FTimerDelegate ShrinkCooldownDelegate;
 				ShrinkCooldownDelegate.BindUFunction(this, FName("SetCanShrink"), true);
-
+				
 				GetWorldTimerManager().SetTimer(ShrinkCooldownHandle, ShrinkCooldownDelegate, ShrinkCooldown, false);
 			
 				// Call the Blueprint version of this function: this helps us to rapidly add prototypical features to this function
@@ -149,7 +252,7 @@ bool APlatformerCharacter::IsShrunk() const
 
 	return VectorisedShrunkScale.Equals(CurrentScale, 0.01f);
 }
-
+	
 void APlatformerCharacter::TraceForInteractables()
 {
 	if (bCanInteract)

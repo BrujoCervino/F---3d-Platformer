@@ -10,10 +10,9 @@ public class F : ModuleRules
 	
 		PublicDependencyModuleNames.AddRange(new string[] 
         {
-            // Default
-            "Core", "CoreUObject", "Engine", "InputCore",
-            // Extras
-            "HeadMountedDisplay"
+            // Default :
+            "Core", "CoreUObject", "Engine", "InputCore"
+            // Extras :
         });
 
         PrivateDependencyModuleNames.AddRange(new string[] {  });

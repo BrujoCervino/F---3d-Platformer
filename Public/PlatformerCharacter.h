@@ -30,8 +30,11 @@ public:
 
 protected:
 
-	// Resets HMD orientation in VR.
-	void OnResetVR();
+	// Called for forwards/backward input
+	void MoveForward(float Value);
+
+	// Called for side to side input
+	void MoveRight(float Value);
 
 	// "Called when the actor falls out of the world 'safely' (below KillZ and such)"
 	virtual void FellOutOfWorld(const UDamageType& dmgType) override;
@@ -39,6 +42,49 @@ protected:
 	// Exposes FellOutOfWorld delegate to Blueprints, for rapid prototyping.
 	UFUNCTION(BlueprintImplementableEvent, meta=(BlueprintProtected))
 	void OnFellOutOfWorld();	// Defined and called from within Blueprints
+
+	// Called upon landing when falling, to perform actions based on the Hit result. Triggers the OnLanded event.
+	virtual void Landed(const FHitResult& Hit) override;
+
+	// Turns the camera to face where the player is looking.
+	// Useful for players who aren't used to turning the right stick
+	virtual void FacePlayerDirection();	
+
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+	//
+	//		Abilities: Air Dash
+	//
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+	// Reflection: First I tried to use ACharacter::AddMovementInput, but that is made for running not jumping
+
+	// Propell the character forwards (character- or camera-relative)
+	virtual void AirDash();
+
+	// Getter and setter for bCanAirDash
+	inline bool CanAirDash() const { return bCanAirDash; }
+	void SetCanAirDash(const bool bNewCanAirDash);
+
+private:
+
+	// The strength of the force applied to the player when dashing
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Abilities|Air Dash", meta = (AllowPrivateAccess = "true"))
+	float DashSpeed;
+
+	// Whether this character can currently air dash
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Abilities|Air Dash", meta = (AllowPrivateAccess = "true"))
+	uint32 bCanAirDash : 1;
+
+	// The sound played on air dashing
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Abilities|Air Dash", meta = (AllowPrivateAccess = "true"))
+	USoundCue* AirDashSound;
+
+	// (For accessibility/player preference): whether air dash is executed the direction the camera is facing 
+	// or in the direction the character is facing 
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Abilities|Air Dash", meta = (AllowPrivateAccess = "true"))
+	uint32 bAirDashIsCameraRelative : 1;
+
+protected:
 
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	//
@@ -65,7 +111,7 @@ private:
 
 	// Whether this character is allowed to shrink at the current time
 	UPROPERTY(VisibleAnywhere,BlueprintReadWrite, Category="Abilities|Shrink", meta=(AllowPrivateAccess="true"))
-	uint8 bCanShrink : 1;
+	uint32 bCanShrink : 1;
 
 	// The sound played when shrinking
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Abilities|Shrink", meta = (AllowPrivateAccess = "true"))
@@ -121,13 +167,13 @@ private:
 
 	// Whether this character is allowed to interact at the current time
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Abilities|Interact", meta = (AllowPrivateAccess = "true"))
-	uint8 bCanInteract : 1;
+	uint32 bCanInteract : 1;
 
 	// Length of the raycast for interaction
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Abilities|Interact", meta = (AllowPrivateAccess = "true"))
 	float InteractionTraceLength;
 
-	//
+	// 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Abilities|Interact", meta = (AllowPrivateAccess = "true"))
 	float InteractionTraceCapsuleRadius; 
 	
@@ -139,17 +185,17 @@ private:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Abilities|Interact", meta = (AllowPrivateAccess = "true"))
 	TArray<TEnumAsByte<EObjectTypeQuery>> InteractionTraceDesiredTypes;
 
-	//
+	// Whether to trace for simple or complex geometry when tracing for interactables
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Abilities|Interact", meta = (AllowPrivateAccess = "true"))
-	uint8 bInteractionTraceComplex : 1;
+	uint32 bInteractionTraceComplex : 1;
 
-	//
+	// Actors (excluding this actor) to exclude when tracing for interactables
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadWrite, Category = "Abilities|Interact", meta = (AllowPrivateAccess = "true")) 
 	TArray<AActor*> InteractionTraceActorsToIgnore;
 
 	//
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Abilities|Interact", meta = (AllowPrivateAccess = "true"))
-	uint8 bDrawInteractionTrace : 1;
+	uint32 bDrawInteractionTrace : 1;
 
 	//
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Abilities|Interact", meta = (AllowPrivateAccess = "true"))
@@ -166,4 +212,5 @@ private:
 	//
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Abilities|Interact", meta = (AllowPrivateAccess = "true"))
 	FTimerHandle InteractionCooldownHandle;
+
 };

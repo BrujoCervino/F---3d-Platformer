@@ -39,15 +39,25 @@ public:
 	virtual void Interact_Implementation(AActor* Interactor) override;
 	//~ End IInteractable Interface
 
+	// Getter for ActorsToActivate
+	inline TArray<AActor*> GetActorsToActivate() const { return ActorsToActivate; }
+
+	// Getter for bIsActive
+	inline bool IsActive() { return bIsActive; }
+
 private:
 
 	// The actors with which this switch will interact
 	UPROPERTY(EditInstanceOnly, BlueprintReadOnly, Category="Interaction", meta=(AllowPrivateAccess="true"))
 	TArray<AActor*> ActorsToActivate;
 
-	// Whether this switch can be used more than once
+	// Whether this switch can only be used once
 	UPROPERTY(EditInstanceOnly, BlueprintReadOnly, Category = "Interaction", meta = (AllowPrivateAccess = "true"))
 	uint8 bExecuteOnce : 1;
+
+	// Whether this switch can only be used once
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Interaction", meta = (AllowPrivateAccess = "true"))
+	uint8 bHasExecuted : 1;
 
 	// Whether this switch is turned on or off.
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Interaction", meta = (AllowPrivateAccess = "true"))

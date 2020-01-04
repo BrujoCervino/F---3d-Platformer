@@ -10,6 +10,7 @@ ASwitch::ASwitch()
 	:
 	ActorsToActivate(),
 	bExecuteOnce(false),
+	bHasExecuted(false),
 	bIsActive(false),
 	ActivatedSound(nullptr),
 	DeactivatedSound(nullptr)
@@ -34,13 +35,32 @@ void ASwitch::Tick(float DeltaTime)
 }
 
 void ASwitch::Interact_Implementation(AActor * Interactor)
-{
+{	
+	// If this switch can only be used once,
+	if (bExecuteOnce)
+	{
+		// If it has executed, terminate execution.
+		if (bHasExecuted)
+		{
+			return;
+		}
+		// Elsewise, let the switch run for the first time.
+		else
+		{
+			bHasExecuted = true;
+		}
+	}
+	
+	// Interact with each valid actor, passing in this switch as the instigator
 	for (AActor* const It : ActorsToActivate)
 	{
-		// Interact with each valid actor, passing in this switch as the instigator
 		if (nullptr != It)
 		{
-			IInteractable::Execute_Interact(It, this);
+			if (It->Implements<UInteractable>())
+			{
+				IInteractable::Execute_Interact(It, this);
+			}
+			
 		}
 	}
 
@@ -50,5 +70,8 @@ void ASwitch::Interact_Implementation(AActor * Interactor)
 
 	// Invert this switch's activity state: if on, turn off (and vice versa)
 	bIsActive = !bIsActive;
+
+	// Call the Blueprint version of this function: this helps us to rapidly add prototypical features to this function
+	IInteractable::Execute_Interact(this, Interactor);
 }
 
