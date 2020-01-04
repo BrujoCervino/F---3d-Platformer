@@ -29,14 +29,18 @@ I began this project in Blueprint, and am porting it to C++.
   ‡ Space               - Jump
   ‡ E                   - Interact
   ‡ F                   - Shrink (Once unlocked)
+  ‡ Q                   - Air Dash (in Air)
   ‡ Esc/Tab             - Pause
-
+  ‡ N                   - Recentre camera   
 
  # Gamepad
 
  ‡ Left Stick           - Move
  ‡ Lower Face Button    - Jump
  ‡ Upper Face Button    - Interact
+ ‡ Right Trigger        - Air Dash (in Air)
  ‡ Right Face Button    - Shrink (Once unlocked)
  ‡ Right Special Button - Pause
+ ‡ Left Shoulder        - Recentre camera 
+
 
