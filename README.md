@@ -25,22 +25,41 @@ I began this project in Blueprint, and am porting it to C++.
  
  # Keyboard:
 
-  ‡ ASDW                - Move
-  ‡ Space               - Jump
-  ‡ E                   - Interact
-  ‡ F                   - Shrink (Once unlocked)
-  ‡ Q                   - Air Dash (in Air)
-  ‡ Esc/Tab             - Pause
-  ‡ N                   - Recentre camera   
+
+  ‡ ASDW                  - Move
+
+  ‡ Space                 - Jump
+
+  ‡ E                     - Interact
+
+  ‡ F                     - Shrink (Once unlocked)
+
+  ‡ R                     - Stomp
+
+  ‡ Q (in air)            - Air Dash. One extra air dash is granted if the player shrinks in midair.
+
+  ‡ Esc/Tab               - Pause
+
+  ‡ N                     - Recentre camera   
+
 
  # Gamepad
 
- ‡ Left Stick           - Move
- ‡ Lower Face Button    - Jump
- ‡ Upper Face Button    - Interact
- ‡ Right Trigger        - Air Dash (in Air)
- ‡ Right Face Button    - Shrink (Once unlocked)
- ‡ Right Special Button - Pause
- ‡ Left Shoulder        - Recentre camera 
+
+ ‡ Left Stick             - Move
+
+ ‡ Lower Face Button      - Jump
+
+ ‡ Upper Face Button      - Interact
+
+ ‡ Right Face Button      - Shrink (Once unlocked)
+
+ ‡ Left Face Button       - Stomp
+ 
+ ‡ Right Trigger (in air) - Air Dash. One extra air dash is granted if the player shrinks in midair.
+ 
+ ‡ Right Special Button   - Pause
+
+ ‡ Left Shoulder          - Recentre camera 
 
 
