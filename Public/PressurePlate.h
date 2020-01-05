@@ -3,21 +3,19 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Switch.h"
+#include "TriggerVolumeSwitch.h"
 #include "PressurePlate.generated.h"
-
-class UBoxComponent;
 
 /** 
  * A pressure plate is a switch which triggers interactables, when stood upon by the player.
  */
 UCLASS()
-class F_API APressurePlate : public ASwitch
+class F_API APressurePlate : public ATriggerVolumeSwitch
 {
 	GENERATED_BODY()
 	
 public:
-
+	// Sets default values for this actor's properties
 	APressurePlate();
 
 	// Event when this actor overlaps another actor, for example a player walking into a trigger.
@@ -31,27 +29,20 @@ public:
 	virtual void Interact_Implementation(AActor* Interactor) override;
 	//~ End IInteractable Interface
 
-	// 
-	UBoxComponent* GetTrigger() { return Trigger; }
-
-	// 
+	// The plate on which the player stands to trigger this switch.
 	UStaticMeshComponent* GetPlateMesh() { return PlateMesh; }
 
-	// 
+	// The mesh of this switch which does not move.
 	UStaticMeshComponent* GetOuterMesh() { return OuterMesh; }
 
 private:
 
 	//
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Interaction", meta = (AllowPrivateAccess = "true"))
-	UBoxComponent* Trigger;
-
-	//
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Interaction", meta = (AllowPrivateAccess = "true"))
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Interaction|Components", meta = (AllowPrivateAccess = "true"))
 	UStaticMeshComponent* PlateMesh;
 
 	//
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Interaction", meta = (AllowPrivateAccess = "true"))
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Interaction|Components", meta = (AllowPrivateAccess = "true"))
 	UStaticMeshComponent* OuterMesh;
 
 	//

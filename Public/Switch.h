@@ -9,7 +9,8 @@
 
 // #Features to implement:
 // Timed: after a certain time, the switch returns to its original state
-// Once	: The switch can only be activated once (if (bIsActive && bExecuteOnce))
+// PRIVATE VARIABALES NEED TO BE GET- AND SETTABLE FROM WITHIN CHILD CLASSES: 
+// either just make them protected or add public/protected get- and setters.
 
 class USoundCue;
 
@@ -53,15 +54,15 @@ private:
 
 	// Whether this switch can only be used once
 	UPROPERTY(EditInstanceOnly, BlueprintReadOnly, Category = "Interaction", meta = (AllowPrivateAccess = "true"))
-	uint8 bExecuteOnce : 1;
+	uint32 bExecuteOnce : 1;
 
 	// Whether this switch can only be used once
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Interaction", meta = (AllowPrivateAccess = "true"))
-	uint8 bHasExecuted : 1;
+	uint32 bHasExecuted : 1;
 
 	// Whether this switch is turned on or off.
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Interaction", meta = (AllowPrivateAccess = "true"))
-	uint8 bIsActive : 1;
+	uint32 bIsActive : 1;
 
 	// Sound to play when the switch is turned on
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Interaction", meta = (AllowPrivateAccess = "true"))

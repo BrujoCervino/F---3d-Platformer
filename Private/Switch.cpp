@@ -60,7 +60,6 @@ void ASwitch::Interact_Implementation(AActor * Interactor)
 			{
 				IInteractable::Execute_Interact(It, this);
 			}
-			
 		}
 	}
 

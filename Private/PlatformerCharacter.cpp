@@ -18,8 +18,10 @@ APlatformerCharacter::APlatformerCharacter()
 	// Air Dash
 	DashSpeed(200.0f),
 	bCanAirDash(true),
+	bCanAirDashSecondary(false),
+	bHasUsedAirDashSecondary(false),
 	AirDashSound(nullptr),
-	// bAirDashIsCameraRelative(false)
+	// bAirDashIsCameraRelative(false) // Read this from a .ini, because it's player preference
 	// Shrink
 	bCanShrink(true),
 	ShrinkSound(nullptr),
@@ -42,7 +44,11 @@ APlatformerCharacter::APlatformerCharacter()
 	InteractionSucceededCue(nullptr),
 	InteractionFailedCue(nullptr),
 	InteractionCooldown(0.2f),
-	InteractionCooldownHandle()
+	InteractionCooldownHandle(),
+	// Stomp
+	StompingGravityScale(6.0f),
+	StandardGravityScale(1.5f),
+	StompLandedCameraShake(UCameraShake::StaticClass())
 {
 	// Set this character to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
@@ -61,6 +67,11 @@ APlatformerCharacter::APlatformerCharacter()
 	}
 #endif // !UE_BUILD_SHIPPING
 
+
+	if (GetCharacterMovement())
+	{
+		GetCharacterMovement()->GravityScale = StandardGravityScale;
+	}
 }
 
 // Called when the game starts or when spawned
@@ -95,6 +106,7 @@ void APlatformerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInpu
 	PlayerInputComponent->BindAction("Air Dash", IE_Pressed, this, &APlatformerCharacter::AirDash);
 	PlayerInputComponent->BindAction("Shrink", IE_Pressed, this, &APlatformerCharacter::ToggleShrink);
 	PlayerInputComponent->BindAction("Interact", IE_Pressed, this, &APlatformerCharacter::TraceForInteractables);
+	PlayerInputComponent->BindAction("Stomp", IE_Pressed, this, &APlatformerCharacter::Stomp);
 
 }
 
@@ -141,8 +153,22 @@ void APlatformerCharacter::FellOutOfWorld(const UDamageType & dmgType)
 
 void APlatformerCharacter::Landed(const FHitResult & Hit)
 {
-	// Reenable air dashing
+	// Landing should feel powerful, so shake the screen
+	if (APlatformerPlayerController* const PC = Cast<APlatformerPlayerController, AController>(GetController()))
+	{
+		const bool bLandedFromStomping = (GetCharacterMovement()->GravityScale == StompingGravityScale);
+		const float ShakeScale = bLandedFromStomping ? 1.0f : 0.3f;
+		
+		PC->ClientPlayCameraShake(StompLandedCameraShake, ShakeScale);
+	}
+
+	// Reenable standard air dashing
 	bCanAirDash = true;
+	// Disable extra air dashing, because only shrinking in mid-air enables this
+	bCanAirDashSecondary = false;
+	bHasUsedAirDashSecondary = false;
+	// Reenable stomp
+	GetCharacterMovement()->GravityScale = StandardGravityScale;
 }
 
 void APlatformerCharacter::FacePlayerDirection()
@@ -154,9 +180,28 @@ void APlatformerCharacter::FacePlayerDirection()
 
 void APlatformerCharacter::AirDash()
 {
-	const bool& bIsInAir = GetCharacterMovement()->IsFalling();
-	if (bCanAirDash && bIsInAir)
+	// If this character can dash and is in the air,
+	if (GetCharacterMovement()->IsFalling())
 	{		
+		bool bIsAirDashing = false;
+		bool bIsSecondaryAirDashing = false;
+		
+		if (bCanAirDash)
+		{
+			// Disable standard air dashing until this character lands
+			bCanAirDash = false;
+		}
+		else if(!bHasUsedAirDashSecondary && bCanAirDashSecondary)
+		{
+			// Disable extra air dashing until this character lands
+			bCanAirDashSecondary = false;
+			bHasUsedAirDashSecondary = true;
+		}
+		else
+		{
+			return;
+		}
+		
 		if ((Controller != NULL) && (DashSpeed != 0.0f))
 		{
 			// find out which way is forward
@@ -176,9 +221,6 @@ void APlatformerCharacter::AirDash()
 			LaunchCharacter(Direction*DashSpeed, false, true);
 
 			UGameplayStatics::PlaySoundAtLocation(this, AirDashSound, GetActorLocation());
-
-			// Disable air dashing until this character lands
-			bCanAirDash = false;
 		}
 	}
 }
@@ -205,12 +247,14 @@ void APlatformerCharacter::ToggleShrink()
 				float ScaleToApply			= ShrunkScale;
 				USoundCue* SoundToPlay		= ShrinkSound;
 				float TimeDilationToApply	= ShrunkTimeDilation;
+				bool bAllowAirDashSecondary	= true;
 
 				if (bReturningToNormalSize)
 				{
 					ScaleToApply			= StandardScale;
 					SoundToPlay				= SizeUpSound;
 					TimeDilationToApply		= StandardTimeDilation;
+					bAllowAirDashSecondary	= false;
 				}
 
 				// Shrink or unshrink the player
@@ -223,6 +267,15 @@ void APlatformerCharacter::ToggleShrink()
 				// (pro: "weightless" floatier jumps 
 				// con: slower movement) 
 				CustomTimeDilation = TimeDilationToApply;
+
+				// Allow an extra air dash:
+				// * If the player is in the air 
+				// * if the player has just turned small
+				if (!bHasUsedAirDashSecondary && GetCharacterMovement()->IsFalling())
+				{
+					bCanAirDashSecondary = bAllowAirDashSecondary;
+				}
+				
 
 				// Ban shrinking
 				SetCanShrink(false);
@@ -276,7 +329,9 @@ void APlatformerCharacter::TraceForInteractables()
 			if (Hit.bBlockingHit)
 			{
 				// Make a quicker to type (into Intellisense) alias. 
-				// This also avoids both extra getter calls and and using the weak pointer of FHitResult::Actor.
+				// This also:
+				// * Avoids both extra getter calls and and using the weak pointer of FHitResult::Actor
+				// * Is non-nullable
 				AActor* const & InteractableActor = Hit.GetActor(); 
 
 				if (nullptr != InteractableActor)
@@ -318,5 +373,14 @@ void APlatformerCharacter::TraceForInteractables()
 void APlatformerCharacter::SetCanInteract(const bool bNewCanInteract)
 {
 	bCanInteract = bNewCanInteract;
+}
+
+void APlatformerCharacter::Stomp()
+{
+	// If this player is airborne,
+	if (GetCharacterMovement()->IsFalling())
+	{
+		GetCharacterMovement()->GravityScale = StompingGravityScale;
+	}
 }
 

@@ -24,31 +24,28 @@ APressurePlate::APressurePlate()
 		PlateMesh->SetMobility(EComponentMobility::Movable);
 	}
 
-	Trigger = CreateDefaultSubobject<UBoxComponent>(TEXT("Trigger"));
-	if (Trigger)
+	if (GetTrigger())
 	{
-		Trigger->SetupAttachment(PlateMesh);
-		Trigger->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+		GetTrigger()->SetupAttachment(PlateMesh);
 	}
+
 }
 
 void APressurePlate::NotifyActorBeginOverlap(AActor * OtherActor)
 {
-	AActor::NotifyActorBeginOverlap(OtherActor);
+	ATriggerVolumeSwitch::NotifyActorBeginOverlap(OtherActor);
 
-	Interact_Implementation(OtherActor);
 }
 
 void APressurePlate::NotifyActorEndOverlap(AActor * OtherActor)
 {
-	AActor::NotifyActorEndOverlap(OtherActor);
+	ATriggerVolumeSwitch::NotifyActorEndOverlap(OtherActor);
 
-	Interact_Implementation(OtherActor);
 }
 
 void APressurePlate::Interact_Implementation(AActor * Interactor)
 {
-	ASwitch::Interact_Implementation(Interactor);
+	ATriggerVolumeSwitch::Interact_Implementation(Interactor);
 
 	if (nullptr != PlateMesh)
 	{

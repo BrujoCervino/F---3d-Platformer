@@ -6,8 +6,13 @@
 #include "GameFramework/Character.h"
 #include "PlatformerCharacter.generated.h"
 
+class UCameraShake;
 class USoundCue;
 
+/**
+* The main playable character of this game.
+* Is third person and can jump, dash, stomp and interact (which can be chained)
+*/
 UCLASS()
 class F_API APlatformerCharacter : public ACharacter
 {
@@ -75,6 +80,14 @@ private:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Abilities|Air Dash", meta = (AllowPrivateAccess = "true"))
 	uint32 bCanAirDash : 1;
 
+	// (Advanced tactic) Whether this character can perform a second air dash
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Abilities|Air Dash", meta = (AllowPrivateAccess = "true"))
+	uint32 bCanAirDashSecondary : 1;
+
+	// Whether this character has used its secondary air dash in the current instance of being in the air
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Abilities|Air Dash", meta = (AllowPrivateAccess = "true"))
+	uint32 bHasUsedAirDashSecondary : 1;
+
 	// The sound played on air dashing
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Abilities|Air Dash", meta = (AllowPrivateAccess = "true"))
 	USoundCue* AirDashSound;
@@ -94,7 +107,7 @@ protected:
 
 	// Toggle this character between a tiny version of itself, able to reach small spaces, and the standard version
 	virtual void ToggleShrink();
-
+	// Notify the Blueprint this player changed size, so it can add prototypical features.
 	UFUNCTION(BlueprintImplementableEvent, Category = "Abilities|Shrink", meta = (BlueprintProtected))
 	void OnShrinkToggled();
 
@@ -213,4 +226,27 @@ private:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Abilities|Interact", meta = (AllowPrivateAccess = "true"))
 	FTimerHandle InteractionCooldownHandle;
 
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+	//
+	//		Abilities: Stomp
+	//
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+protected:
+
+	// Propell the character downwards, as though weighed down
+	virtual void Stomp();
+
+private:
+
+	// The gravity scale to apply to this character when stomping
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Abilities|Stomp", meta = (AllowPrivateAccess = "true"))
+	float StompingGravityScale;
+
+	// The gravity scale to apply to this character when not stomping
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Abilities|Stomp", meta = (AllowPrivateAccess = "true"))
+	float StandardGravityScale;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Abilities|Stomp", meta = (AllowPrivateAccess = "true"))
+	TSubclassOf<UCameraShake> StompLandedCameraShake;
 };
