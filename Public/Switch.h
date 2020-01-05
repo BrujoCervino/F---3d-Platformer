@@ -9,8 +9,6 @@
 
 // #Features to implement:
 // Timed: after a certain time, the switch returns to its original state
-// PRIVATE VARIABALES NEED TO BE GET- AND SETTABLE FROM WITHIN CHILD CLASSES: 
-// either just make them protected or add public/protected get- and setters.
 
 class USoundCue;
 
@@ -46,23 +44,27 @@ public:
 	// Getter for bIsActive
 	inline bool IsActive() { return bIsActive; }
 
+protected:
+
+	// Whether this switch can only be used once
+	UPROPERTY(EditInstanceOnly, BlueprintReadOnly, Category = "Interaction", meta = (BlueprintProtected = "true"))
+	uint32 bExecuteOnce : 1;
+
+	// Whether this switch can only be used once
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Interaction", meta = (BlueprintProtected = "true"))
+	uint32 bHasExecuted : 1;
+
+	// Whether this switch is turned on or off.
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Interaction", meta = (BlueprintProtected = "true"))
+	uint32 bIsActive : 1;
+
+
+
 private:
 
 	// The actors with which this switch will interact
 	UPROPERTY(EditInstanceOnly, BlueprintReadOnly, Category="Interaction", meta=(AllowPrivateAccess="true"))
 	TArray<AActor*> ActorsToActivate;
-
-	// Whether this switch can only be used once
-	UPROPERTY(EditInstanceOnly, BlueprintReadOnly, Category = "Interaction", meta = (AllowPrivateAccess = "true"))
-	uint32 bExecuteOnce : 1;
-
-	// Whether this switch can only be used once
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Interaction", meta = (AllowPrivateAccess = "true"))
-	uint32 bHasExecuted : 1;
-
-	// Whether this switch is turned on or off.
-	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Interaction", meta = (AllowPrivateAccess = "true"))
-	uint32 bIsActive : 1;
 
 	// Sound to play when the switch is turned on
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Interaction", meta = (AllowPrivateAccess = "true"))

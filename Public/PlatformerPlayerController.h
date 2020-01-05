@@ -26,7 +26,7 @@ protected:
 	virtual void BeginPlay() override;
 
 	// Whether the player has unlocked the shrink ability yet
-	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, meta = (AllowPrivateAccess = "true"))
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, meta = (BlueprintProtected = "true"))
 	uint32 bShrinkUnlocked : 1;
 
 };

@@ -34,13 +34,16 @@ public:
 	virtual void Interact_Implementation(AActor* Interactor) override;
 	//~ End IInteractable Interface
 
-private:
-
-	// The trigger whose overlap activates or deactivates the interactables
-	UPROPERTY(VisibleAnywhere, Category="Interaction|Components", BlueprintReadOnly, meta=(AllowPrivateAccess="True") )
-	UBoxComponent* Trigger;
+protected:
 
 	// Whether leaving the trigger volume triggers interaction
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Interaction", meta = (AllowPrivateAccess = "true"))
 	uint32 bEndOverlapCausesInteraction : 1;
+
+private:
+
+	// The trigger whose overlap activates or deactivates the interactables
+	UPROPERTY(VisibleAnywhere, Category="Interaction|Components", BlueprintReadOnly, meta=(AllowPrivateAccess="true") )
+	UBoxComponent* Trigger;
+
 };
