@@ -8,10 +8,10 @@
 // Sets default values
 ASwitch::ASwitch()
 	:
-	ActorsToActivate(),
 	bExecuteOnce(false),
 	bHasExecuted(false),
 	bIsActive(false),
+	ActorsToActivate(),
 	ActivatedSound(nullptr),
 	DeactivatedSound(nullptr)
 {

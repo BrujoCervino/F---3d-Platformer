@@ -54,19 +54,26 @@ APlatformerCharacter::APlatformerCharacter()
 	PrimaryActorTick.bCanEverTick = true;
 	PrimaryActorTick.bStartWithTickEnabled = false;
 	
-	// Load player-tweakable variables from the main game config file:
-	bool bTemp = false;
-	if (GConfig->GetBool(TEXT("F.Abilities.Air Dash"), TEXT("bAirDashIsCameraRelative"), bTemp, GGameIni))
+	if (GConfig)
 	{
-		bAirDashIsCameraRelative = bTemp;
-	}
-#if !UE_BUILD_SHIPPING
-	else
-	{
-		UE_LOG(LogTemp, Error, TEXT("%s is not defined within %s"), GET_MEMBER_NAME_STRING_CHECKED(APlatformerCharacter, bAirDashIsCameraRelative), *GGameIni);
-	}
-#endif // !UE_BUILD_SHIPPING
+		// For now, ensure Game.ini contains our config variables.
+		// Setting them NEEDS to be moved to another class
+		GConfig->SetBool(TEXT("F.Abilities.Air Dash"), TEXT("bAirDashIsCameraRelative"), false, GGameIni);
+		GConfig->Flush(false, GGameIni);
 
+		// Load player-tweakable variables from the main game config file:
+		bool bTemp = false;
+		if (GConfig->GetBool(TEXT("F.Abilities.Air Dash"), TEXT("bAirDashIsCameraRelative"), bTemp, GGameIni))
+		{
+			bAirDashIsCameraRelative = bTemp;
+		}
+#if !UE_BUILD_SHIPPING
+		else
+		{
+			UE_LOG(LogTemp, Error, TEXT("%s is not defined within %s"), GET_MEMBER_NAME_STRING_CHECKED(APlatformerCharacter, bAirDashIsCameraRelative), *GGameIni);
+		}
+#endif // !UE_BUILD_SHIPPING
+	}
 
 	if (GetCharacterMovement())
 	{
@@ -112,7 +119,7 @@ void APlatformerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInpu
 
 void APlatformerCharacter::MoveForward(float Value)
 {
-	if ((Controller != NULL) && (Value != 0.0f))
+	if ((nullptr != Controller) && (Value != 0.0f))
 	{
 		// find out which way is forward
 		const FRotator YawRotation(
@@ -129,7 +136,7 @@ void APlatformerCharacter::MoveForward(float Value)
 
 void APlatformerCharacter::MoveRight(float Value)
 {
-	if ((Controller != NULL) && (Value != 0.0f))
+	if ((nullptr != Controller) && (Value != 0.0f))
 	{
 		// find out which way is right
 		const FRotator YawRotation(
@@ -154,7 +161,7 @@ void APlatformerCharacter::FellOutOfWorld(const UDamageType & dmgType)
 void APlatformerCharacter::Landed(const FHitResult & Hit)
 {
 	// Landing should feel powerful, so shake the screen
-	if (APlatformerPlayerController* const PC = Cast<APlatformerPlayerController, AController>(GetController()))
+	if (APlatformerPlayerController* const PC = Cast<APlatformerPlayerController, AController>(Controller))
 	{
 		const bool bLandedFromStomping = (GetCharacterMovement()->GravityScale == StompingGravityScale);
 		const float ShakeScale = bLandedFromStomping ? 1.0f : 0.3f;
@@ -174,18 +181,14 @@ void APlatformerCharacter::Landed(const FHitResult & Hit)
 void APlatformerCharacter::FacePlayerDirection()
 {
 	// Get the mesh's right vector as a rotator
-	
-	GetController()->SetControlRotation(GetMesh()->GetRightVector().ToOrientationRotator());
+	Controller->SetControlRotation(GetMesh()->GetRightVector().ToOrientationRotator());
 }
 
 void APlatformerCharacter::AirDash()
 {
 	// If this character can dash and is in the air,
 	if (GetCharacterMovement()->IsFalling())
-	{		
-		bool bIsAirDashing = false;
-		bool bIsSecondaryAirDashing = false;
-		
+	{				
 		if (bCanAirDash)
 		{
 			// Disable standard air dashing until this character lands
@@ -202,7 +205,7 @@ void APlatformerCharacter::AirDash()
 			return;
 		}
 		
-		if ((Controller != NULL) && (DashSpeed != 0.0f))
+		if ((nullptr != Controller) && (DashSpeed != 0.0f))
 		{
 			// find out which way is forward
 			const FRotator YawRotation(
@@ -216,10 +219,14 @@ void APlatformerCharacter::AirDash()
 				!bAirDashIsCameraRelative ? 
 				GetMesh()->GetRightVector() : 
 				FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X);
+
+			// Air dashing cancels stomping - this enables more precise platforming
+			GetCharacterMovement()->GravityScale = StandardGravityScale;
 				
 			// Propell the character
 			LaunchCharacter(Direction*DashSpeed, false, true);
 
+			// Play a sound to confirm to the player that the dash succeeded
 			UGameplayStatics::PlaySoundAtLocation(this, AirDashSound, GetActorLocation());
 		}
 	}
@@ -236,7 +243,7 @@ void APlatformerCharacter::ToggleShrink()
 	{
 		// Get the player controller in the correct format. 
 		// (Keep it only const-pointer, because I'll add camera shake and controller vibration later)
-		APlatformerPlayerController* const PC = Cast<APlatformerPlayerController, AController>(GetController());
+		APlatformerPlayerController* const PC = Cast<APlatformerPlayerController, AController>(Controller);
 		if (nullptr != PC)
 		{
 			// If the player has unlocked the shrink ability,
@@ -330,7 +337,8 @@ void APlatformerCharacter::TraceForInteractables()
 			{
 				// Make a quicker to type (into Intellisense) alias. 
 				// This also:
-				// * Avoids both extra getter calls and and using the weak pointer of FHitResult::Actor
+				// * Avoids both extra getter calls
+				// * Avoids using the weak pointer of FHitResult::Actor
 				// * Is non-nullable
 				AActor* const & InteractableActor = Hit.GetActor(); 
 

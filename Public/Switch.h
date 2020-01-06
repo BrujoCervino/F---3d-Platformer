@@ -17,7 +17,6 @@ class USoundCue;
 UCLASS()
 class F_API ASwitch 
 	: public AActor, public IInteractable
-
 {
 	GENERATED_BODY()
 	
@@ -57,8 +56,6 @@ protected:
 	// Whether this switch is turned on or off.
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Interaction", meta = (BlueprintProtected = "true"))
 	uint32 bIsActive : 1;
-
-
 
 private:
 

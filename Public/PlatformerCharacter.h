@@ -6,6 +6,13 @@
 #include "GameFramework/Character.h"
 #include "PlatformerCharacter.generated.h"
 
+// WARNING/TODO: THE CONFIG VARIABLES NEED TO BE SETTABLE FROM WITHIN THE UI.
+// TODO: look into events within Misc/CoreDelegates.h : lots of goodies in there.
+/* TODO: revamp interaction trace system: 
+* Should be toggleable between camera- and character relative
+* Probably use a capsule component attachable to camera or mesh (avoids mess within Tick)
+*/
+
 class UCameraShake;
 class USoundCue;
 
@@ -206,15 +213,17 @@ private:
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadWrite, Category = "Abilities|Interact", meta = (AllowPrivateAccess = "true")) 
 	TArray<AActor*> InteractionTraceActorsToIgnore;
 
-	//
+	// Whether to draw the capsule trace used for interacting
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Abilities|Interact", meta = (AllowPrivateAccess = "true"))
 	uint32 bDrawInteractionTrace : 1;
 
-	//
+	// The sound to play when this player successfully interacts with something
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Abilities|Interact", meta = (AllowPrivateAccess = "true"))
 	USoundCue* InteractionSucceededCue;
 
-	//
+	// The sound to play when this player fails to interact with something (detected an object but it's not interactable).
+	// Not sure whether this will stay in the game: though it makes the game feel more responsive, it can be annohyingly spammed.
+	// A better solution would be to display a symbol on-screen when an interactable is in view
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Abilities|Interact", meta = (AllowPrivateAccess = "true"))
 	USoundCue* InteractionFailedCue;
 
