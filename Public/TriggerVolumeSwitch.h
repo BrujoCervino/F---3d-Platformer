@@ -36,7 +36,9 @@ public:
 
 protected:
 
-	// Whether leaving the trigger volume triggers interaction
+	// Whether leaving the trigger volume triggers interaction.
+	// Most useful when dealing with a pressure plate which must have an actor triggering it at all times:
+	// E.G. a pressure plate which must have a player or a weight always keeping it active.
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Interaction", meta = (AllowPrivateAccess = "true"))
 	uint32 bEndOverlapCausesInteraction : 1;
 

@@ -37,7 +37,7 @@ public:
 
 private:
 
-	//
+	// The 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Interaction|Components", meta = (AllowPrivateAccess = "true"))
 	UStaticMeshComponent* PlateMesh;
 
@@ -49,7 +49,7 @@ private:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Interaction", meta = (AllowPrivateAccess = "true"))
 	float PlateMeshActiveHeight;
 
-	//
+	// 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Interaction", meta = (AllowPrivateAccess = "true"))
 	float PlateMeshInactiveHeight;
 

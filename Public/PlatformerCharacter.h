@@ -9,12 +9,16 @@
 // WARNING/TODO: THE CONFIG VARIABLES NEED TO BE SETTABLE FROM WITHIN THE UI.
 // TODO: look into events within Misc/CoreDelegates.h : lots of goodies in there.
 /* TODO: revamp interaction trace system: 
-* Should be toggleable between camera- and character relative
+* Should be toggleable between camera- and character relative 
 * Probably use a capsule component attachable to camera or mesh (avoids mess within Tick)
+* Plan: onOverlapBegin: display a widget indicating player can interact and store a pointer to the currently interactable actor;
+*		onOverlapEnd, hide the widget and nullify the pointer
 */
 
+class UCameraComponent;
 class UCameraShake;
 class USoundCue;
+class USpringArmComponent;
 
 /**
 * The main playable character of this game.
@@ -40,6 +44,26 @@ public:
 	// Called to bind functionality to input
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+	//
+	//		Basics: Movement & Camera
+	//
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+public:
+
+	// Returns CameraBoom subobject
+	FORCEINLINE USpringArmComponent* GetCameraBoom() const { return CameraBoom; }
+	// Returns FollowCamera subobject
+	FORCEINLINE UCameraComponent* GetFollowCamera() const { return FollowCamera; }
+
+	/** Base turn rate, in deg/sec. Other scaling may affect final turn rate. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera)
+	float BaseTurnRate;
+
+	/** Base look up/down rate, in deg/sec. Other scaling may affect final rate. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera)
+	float BaseLookUpRate;
+
 protected:
 
 	// Called for forwards/backward input
@@ -47,6 +71,14 @@ protected:
 
 	// Called for side to side input
 	void MoveRight(float Value);
+
+	// Called via input to turn at a given rate.
+	// Rate: This is a normalized rate, i.e. 1.0 means 100% of desired turn rate
+	void TurnAtRate(float Rate);
+
+	// Called via input to look up/down at a given rate.
+	// Rate: This is a normalized rate, i.e. 1.0 means 100% of desired turn rate
+	void LookUpAtRate(float Rate);
 
 	// "Called when the actor falls out of the world 'safely' (below KillZ and such)"
 	virtual void FellOutOfWorld(const UDamageType& dmgType) override;
@@ -59,8 +91,18 @@ protected:
 	virtual void Landed(const FHitResult& Hit) override;
 
 	// Turns the camera to face where the player is looking.
-	// Useful for players who aren't used to turning the right stick
+	// Useful for players who aren't used to turning the right stick (those who don't play 3d games)
 	virtual void FacePlayerDirection();	
+
+private:
+
+	// Camera boom positioning the camera behind the character 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Camera", meta = (AllowPrivateAccess = "true"))
+	USpringArmComponent* CameraBoom;
+	
+	// Follow camera
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Camera", meta = (AllowPrivateAccess = "true"))
+	UCameraComponent* FollowCamera;
 
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	//
@@ -68,7 +110,7 @@ protected:
 	//
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-	// Reflection: First I tried to use ACharacter::AddMovementInput, but that is made for running not jumping
+protected:
 
 	// Propell the character forwards (character- or camera-relative)
 	virtual void AirDash();
@@ -90,6 +132,12 @@ private:
 	// (Advanced tactic) Whether this character can perform a second air dash
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Abilities|Air Dash", meta = (AllowPrivateAccess = "true"))
 	uint32 bCanAirDashSecondary : 1;
+
+	// Whether this character has used its primary air dash in the current instance of being in the air.
+	// This flag exists so I can ensure the player can only (dash, shrink, dash) as an advanced technique,
+	// rather than the valueless (shrink, dash, dash)
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Abilities|Air Dash", meta = (AllowPrivateAccess = "true"))
+	uint32 bHasUsedAirDashPrimary : 1;
 
 	// Whether this character has used its secondary air dash in the current instance of being in the air
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Abilities|Air Dash", meta = (AllowPrivateAccess = "true"))
@@ -227,11 +275,11 @@ private:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Abilities|Interact", meta = (AllowPrivateAccess = "true"))
 	USoundCue* InteractionFailedCue;
 
-	//
+	// The time (seconds), after interaction, to wait until reenabling it.
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Abilities|Interact", meta = (AllowPrivateAccess = "true"))
 	float InteractionCooldown;
 
-	//
+	// 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Abilities|Interact", meta = (AllowPrivateAccess = "true"))
 	FTimerHandle InteractionCooldownHandle;
 
@@ -256,6 +304,7 @@ private:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Abilities|Stomp", meta = (AllowPrivateAccess = "true"))
 	float StandardGravityScale;
 
+	// The camera shake to play when this player lands from stomping
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Abilities|Stomp", meta = (AllowPrivateAccess = "true"))
 	TSubclassOf<UCameraShake> StompLandedCameraShake;
 };

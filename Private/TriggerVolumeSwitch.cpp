@@ -11,8 +11,8 @@ ATriggerVolumeSwitch::ATriggerVolumeSwitch()
 	if( nullptr != Trigger )
 	{
 		RootComponent = Trigger;
-		Trigger->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
-		Trigger->bMultiBodyOverlap = true;
+		Trigger->SetCollisionEnabled(ECollisionEnabled::QueryOnly);	// Only overlaps, no collision
+		Trigger->bMultiBodyOverlap = true;	// Multiple actors can overlap with this trigger
 	}
 }
 

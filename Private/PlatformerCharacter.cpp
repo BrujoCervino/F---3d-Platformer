@@ -3,26 +3,31 @@
 #include "PlatformerCharacter.h"
 #include "PlatformerPlayerController.h"
 #include "Kismet/GameplayStatics.h"
-#include "Kismet/KismetSystemLibrary.h"
+#include "Kismet/KismetSystemLibrary.h" // CapsuleTrace
 #include "Camera/CameraComponent.h"
+#include "GameFramework/SpringArmComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
-#include "Misc/ConfigCacheIni.h"
+#include "Misc/ConfigCacheIni.h" // Config (ini) variables
 #include "Sound/SoundCue.h"
-#include "TimerManager.h"
-#include "Interactable.h"
+#include "TimerManager.h" // Timers
+#include "Interactable.h" 
 
 // Sets default values
 APlatformerCharacter::APlatformerCharacter()
 	:
-	// Air Dash
+	// * Movement & Camera
+	BaseTurnRate(45.0f),
+	BaseLookUpRate(45.0f),
+	// * Air Dash
 	DashSpeed(200.0f),
 	bCanAirDash(true),
 	bCanAirDashSecondary(false),
+	bHasUsedAirDashPrimary(false),
 	bHasUsedAirDashSecondary(false),
 	AirDashSound(nullptr),
 	// bAirDashIsCameraRelative(false) // Read this from a .ini, because it's player preference
-	// Shrink
+	// * Shrink
 	bCanShrink(true),
 	ShrinkSound(nullptr),
 	SizeUpSound(nullptr),
@@ -32,7 +37,7 @@ APlatformerCharacter::APlatformerCharacter()
 	StandardTimeDilation(1.0f),
 	ShrinkCooldown(0.3f),
 	ShrinkCooldownHandle(),
-	// Interact
+	// * Interact
 	bCanInteract(true),
 	InteractionTraceLength(600.0f),
 	InteractionTraceCapsuleRadius(42.0f),
@@ -45,15 +50,39 @@ APlatformerCharacter::APlatformerCharacter()
 	InteractionFailedCue(nullptr),
 	InteractionCooldown(0.2f),
 	InteractionCooldownHandle(),
-	// Stomp
+	// * Stomp
 	StompingGravityScale(6.0f),
 	StandardGravityScale(1.5f),
 	StompLandedCameraShake(UCameraShake::StaticClass())
 {
 	// Set this character to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
-	PrimaryActorTick.bStartWithTickEnabled = false;
-	
+	PrimaryActorTick.bStartWithTickEnabled = true;
+
+	// Ensure the gravity scale is the one this player uses when not shrunk
+	if (GetCharacterMovement())
+	{
+		GetCharacterMovement()->GravityScale = StandardGravityScale;
+	}
+
+	// Create a camera boom (pulls in towards the player if there is a collision)
+	CameraBoom = CreateDefaultSubobject<USpringArmComponent>(TEXT("CameraBoom"));
+	if (CameraBoom)
+	{
+		CameraBoom->SetupAttachment(RootComponent);
+		CameraBoom->TargetArmLength = 300.0f; // The camera follows at this distance behind the character	
+		CameraBoom->bUsePawnControlRotation = true; // Rotate the arm based on the controller
+	}
+
+	// Create a follow camera
+	FollowCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("FollowCamera"));
+	if (FollowCamera)
+	{
+		FollowCamera->SetupAttachment(CameraBoom, USpringArmComponent::SocketName); // Attach the camera to the end of the boom and let the boom adjust to match the controller orientation
+		FollowCamera->bUsePawnControlRotation = false; // Camera does not rotate relative to arm 
+	}
+
+	// Config variables
 	if (GConfig)
 	{
 		// For now, ensure Game.ini contains our config variables.
@@ -75,10 +104,8 @@ APlatformerCharacter::APlatformerCharacter()
 #endif // !UE_BUILD_SHIPPING
 	}
 
-	if (GetCharacterMovement())
-	{
-		GetCharacterMovement()->GravityScale = StandardGravityScale;
-	}
+	// Note: The skeletal mesh and anim blueprint references on the Mesh component (inherited from Character) 
+	// are set in the derived blueprint asset named MyCharacter (to avoid direct content references in C++)
 }
 
 // Called when the game starts or when spawned
@@ -100,21 +127,42 @@ void APlatformerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInpu
 {
 	Super::SetupPlayerInputComponent(PlayerInputComponent);
 
-	// Core movement
+	// * Core movement
 	PlayerInputComponent->BindAxis("MoveForward", this, &APlatformerCharacter::MoveForward);
 	PlayerInputComponent->BindAxis("MoveRight", this, &APlatformerCharacter::MoveRight);
-
-	PlayerInputComponent->BindAction("FacePlayerDirection", IE_Pressed, this, &APlatformerCharacter::FacePlayerDirection);
 
 	PlayerInputComponent->BindAction("Jump", IE_Pressed, this, &ACharacter::Jump);
 	PlayerInputComponent->BindAction("Jump", IE_Released, this, &ACharacter::StopJumping);
 
-	// Abilities
+	// * Camera
+	// We have 2 versions of the rotation bindings to handle different kinds of devices differently
+	// "turn" handles devices that provide an absolute delta, such as a mouse.
+	// "turnrate" is for devices that we choose to treat as a rate of change, such as an analog joystick
+	PlayerInputComponent->BindAxis("Turn", this, &APawn::AddControllerYawInput);
+	PlayerInputComponent->BindAxis("TurnRate", this, &APlatformerCharacter::TurnAtRate);
+	PlayerInputComponent->BindAxis("LookUp", this, &APawn::AddControllerPitchInput);
+	PlayerInputComponent->BindAxis("LookUpRate", this, &APlatformerCharacter::LookUpAtRate);
+
+	PlayerInputComponent->BindAction("FacePlayerDirection", IE_Pressed, this, &APlatformerCharacter::FacePlayerDirection);
+
+	// * Abilities
 	PlayerInputComponent->BindAction("Air Dash", IE_Pressed, this, &APlatformerCharacter::AirDash);
 	PlayerInputComponent->BindAction("Shrink", IE_Pressed, this, &APlatformerCharacter::ToggleShrink);
 	PlayerInputComponent->BindAction("Interact", IE_Pressed, this, &APlatformerCharacter::TraceForInteractables);
 	PlayerInputComponent->BindAction("Stomp", IE_Pressed, this, &APlatformerCharacter::Stomp);
 
+}
+
+void APlatformerCharacter::TurnAtRate(float Rate)
+{
+	// calculate delta for this frame from the rate information
+	AddControllerYawInput(Rate * BaseTurnRate * GetWorld()->GetDeltaSeconds());
+}
+
+void APlatformerCharacter::LookUpAtRate(float Rate)
+{
+	// calculate delta for this frame from the rate information
+	AddControllerPitchInput(Rate * BaseLookUpRate * GetWorld()->GetDeltaSeconds());
 }
 
 void APlatformerCharacter::MoveForward(float Value)
@@ -140,10 +188,10 @@ void APlatformerCharacter::MoveRight(float Value)
 	{
 		// find out which way is right
 		const FRotator YawRotation(
-				0.0f, 
-				Controller->GetControlRotation().Yaw, 
-				0.0f
-			);
+			0.0f,
+			Controller->GetControlRotation().Yaw,
+			0.0f
+		);
 
 		// get right vector 
 		const FVector Direction = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
@@ -152,25 +200,26 @@ void APlatformerCharacter::MoveRight(float Value)
 	}
 }
 
-void APlatformerCharacter::FellOutOfWorld(const UDamageType & dmgType)
+void APlatformerCharacter::FellOutOfWorld(const UDamageType& dmgType)
 {
 	// Don't call Super::FellOutOfWorld, as we don't want to destroy this actor
 	OnFellOutOfWorld();
 }
 
-void APlatformerCharacter::Landed(const FHitResult & Hit)
+void APlatformerCharacter::Landed(const FHitResult& Hit)
 {
 	// Landing should feel powerful, so shake the screen
 	if (APlatformerPlayerController* const PC = Cast<APlatformerPlayerController, AController>(Controller))
 	{
 		const bool bLandedFromStomping = (GetCharacterMovement()->GravityScale == StompingGravityScale);
 		const float ShakeScale = bLandedFromStomping ? 1.0f : 0.3f;
-		
+
 		PC->ClientPlayCameraShake(StompLandedCameraShake, ShakeScale);
 	}
 
 	// Reenable standard air dashing
 	bCanAirDash = true;
+	bHasUsedAirDashPrimary = false;
 	// Disable extra air dashing, because only shrinking in mid-air enables this
 	bCanAirDashSecondary = false;
 	bHasUsedAirDashSecondary = false;
@@ -188,13 +237,14 @@ void APlatformerCharacter::AirDash()
 {
 	// If this character can dash and is in the air,
 	if (GetCharacterMovement()->IsFalling())
-	{				
-		if (bCanAirDash)
+	{
+		if (!bHasUsedAirDashPrimary && bCanAirDash)
 		{
 			// Disable standard air dashing until this character lands
 			bCanAirDash = false;
+			bHasUsedAirDashPrimary = true;
 		}
-		else if(!bHasUsedAirDashSecondary && bCanAirDashSecondary)
+		else if (!bHasUsedAirDashSecondary && bCanAirDashSecondary)
 		{
 			// Disable extra air dashing until this character lands
 			bCanAirDashSecondary = false;
@@ -204,7 +254,7 @@ void APlatformerCharacter::AirDash()
 		{
 			return;
 		}
-		
+
 		if ((nullptr != Controller) && (DashSpeed != 0.0f))
 		{
 			// find out which way is forward
@@ -215,16 +265,16 @@ void APlatformerCharacter::AirDash()
 			);
 
 			// Had to use the right vector because the default mesh defaultly faces right
-			const FVector Direction = 
-				!bAirDashIsCameraRelative ? 
-				GetMesh()->GetRightVector() : 
+			const FVector Direction =
+				!bAirDashIsCameraRelative ?
+				GetMesh()->GetRightVector() :
 				FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X);
 
 			// Air dashing cancels stomping - this enables more precise platforming
 			GetCharacterMovement()->GravityScale = StandardGravityScale;
-				
+
 			// Propell the character
-			LaunchCharacter(Direction*DashSpeed, false, true);
+			LaunchCharacter(Direction * DashSpeed, false, true);
 
 			// Play a sound to confirm to the player that the dash succeeded
 			UGameplayStatics::PlaySoundAtLocation(this, AirDashSound, GetActorLocation());
@@ -249,19 +299,28 @@ void APlatformerCharacter::ToggleShrink()
 			// If the player has unlocked the shrink ability,
 			if (PC->IsShrinkUnlocked())
 			{
-				const bool& bReturningToNormalSize = IsShrunk(); // Use an alias for clearer code
-				
-				float ScaleToApply			= ShrunkScale;
-				USoundCue* SoundToPlay		= ShrinkSound;
-				float TimeDilationToApply	= ShrunkTimeDilation;
-				bool bAllowAirDashSecondary	= true;
+				const bool& bAboutToDecreaseSize = !IsShrunk(); // Use an alias for clearer code
 
-				if (bReturningToNormalSize)
+				float ScaleToApply = StandardScale;
+				USoundCue* SoundToPlay = SizeUpSound;
+				float TimeDilationToApply = StandardTimeDilation;
+
+				if (bAboutToDecreaseSize)
 				{
-					ScaleToApply			= StandardScale;
-					SoundToPlay				= SizeUpSound;
-					TimeDilationToApply		= StandardTimeDilation;
-					bAllowAirDashSecondary	= false;
+					ScaleToApply = ShrunkScale;
+					SoundToPlay = ShrinkSound;
+					TimeDilationToApply = ShrunkTimeDilation;
+
+					// Allow an extra air dash if this player:
+					// * Has just turned small
+					// * Has used standard air dash
+					// * Has not already used secondary air dash
+					// * Is in the air
+					// This makes secondary air dash a technique for advanced players
+					if (bHasUsedAirDashPrimary && !bHasUsedAirDashSecondary && GetCharacterMovement()->IsFalling())
+					{
+						bCanAirDashSecondary = true;
+					}
 				}
 
 				// Shrink or unshrink the player
@@ -275,28 +334,19 @@ void APlatformerCharacter::ToggleShrink()
 				// con: slower movement) 
 				CustomTimeDilation = TimeDilationToApply;
 
-				// Allow an extra air dash:
-				// * If the player is in the air 
-				// * if the player has just turned small
-				if (!bHasUsedAirDashSecondary && GetCharacterMovement()->IsFalling())
-				{
-					bCanAirDashSecondary = bAllowAirDashSecondary;
-				}
-				
-
 				// Ban shrinking
 				SetCanShrink(false);
 
 				// Put a cooldown on shrinking: reenable it after the cooldown.
 				FTimerDelegate ShrinkCooldownDelegate;
 				ShrinkCooldownDelegate.BindUFunction(this, FName("SetCanShrink"), true);
-				
+
 				GetWorldTimerManager().SetTimer(ShrinkCooldownHandle, ShrinkCooldownDelegate, ShrinkCooldown, false);
-			
+
 				// Call the Blueprint version of this function: this helps us to rapidly add prototypical features to this function
 				OnShrinkToggled();
 			}
-		}		
+		}
 	}
 }
 
@@ -307,72 +357,64 @@ void APlatformerCharacter::SetCanShrink(const bool bNewCanShrink)
 
 bool APlatformerCharacter::IsShrunk() const
 {
-	const FVector VectorisedShrunkScale = FVector::OneVector * ShrunkScale;
+	const FVector VectorisedShrunkScale = FVector(ShrunkScale);
 	const FVector& CurrentScale = GetActorScale3D();
 
 	return VectorisedShrunkScale.Equals(CurrentScale, 0.01f);
 }
-	
+
 void APlatformerCharacter::TraceForInteractables()
 {
-	if (bCanInteract)
+	if (bCanInteract && (nullptr != FollowCamera))
 	{
-		// Remove this ugly line in future updates: it can be replaced with the actual camera once this character is fully ported to C++
-		UCameraComponent const * const Camera = Cast<UCameraComponent, UActorComponent>( GetComponentByClass(UCameraComponent::StaticClass()) );
-		if (nullptr != Camera)
+		const FVector& CamLoc = FollowCamera->GetComponentLocation();
+		const FVector TraceEndPosition = (FollowCamera->GetForwardVector() * InteractionTraceLength) + CamLoc;
+
+		FHitResult Hit = FHitResult();
+		const bool IgnoreSelfWithinInteractionTrace = true;
+
+		const EDrawDebugTrace::Type InteractionTraceDrawDebugType
+			= bDrawInteractionTrace ? EDrawDebugTrace::Persistent : EDrawDebugTrace::None;
+
+		UKismetSystemLibrary::CapsuleTraceSingleForObjects(this, CamLoc, TraceEndPosition, InteractionTraceCapsuleRadius, InteractionTraceCapsuleHalfHeight, InteractionTraceDesiredTypes,
+			bInteractionTraceComplex, InteractionTraceActorsToIgnore, InteractionTraceDrawDebugType, Hit, IgnoreSelfWithinInteractionTrace);
+		// If the trace hit something,
+		if (Hit.bBlockingHit)
 		{
-			const FVector& CamLoc = Camera->GetComponentLocation();
-			const FVector TraceEndPosition = (Camera->GetForwardVector() * InteractionTraceLength) + CamLoc;
+			// Make a quicker to type (into Intellisense) alias. 
+			// This also:
+			// * Avoids both extra getter calls
+			// * Avoids using the weak pointer of FHitResult::Actor
+			// * Is non-nullable
+			AActor* const& InteractableActor = Hit.GetActor();
 
-			FHitResult Hit = FHitResult();
-			const bool IgnoreSelfWithinInteractionTrace = true;
-
-			const EDrawDebugTrace::Type InteractionTraceDrawDebugType 
-				= bDrawInteractionTrace ? EDrawDebugTrace::Persistent : EDrawDebugTrace::None;
-			
-			UKismetSystemLibrary::CapsuleTraceSingleForObjects(this, CamLoc, TraceEndPosition, InteractionTraceCapsuleRadius, InteractionTraceCapsuleHalfHeight, InteractionTraceDesiredTypes, 
-				bInteractionTraceComplex, InteractionTraceActorsToIgnore, InteractionTraceDrawDebugType, Hit, IgnoreSelfWithinInteractionTrace);
-			// If the trace hit something,
-			if (Hit.bBlockingHit)
+			if (nullptr != InteractableActor)
 			{
-				// Make a quicker to type (into Intellisense) alias. 
-				// This also:
-				// * Avoids both extra getter calls
-				// * Avoids using the weak pointer of FHitResult::Actor
-				// * Is non-nullable
-				AActor* const & InteractableActor = Hit.GetActor(); 
+				// Avoid a useless assignment to nullptr, by assuming nothing interactable was found
+				USoundCue* SoundToPlay = InteractionFailedCue;
 
-				if (nullptr != InteractableActor)
+				// If we hit something interactable,
+				if (!InteractableActor->IsPendingKill() && InteractableActor->Implements<UInteractable>())
 				{
-					USoundCue* SoundToPlay = nullptr;
-					// If we hit something interactable,
-					if ( !InteractableActor->IsPendingKill() && InteractableActor->Implements<UInteractable>())
-					{
-						// Interact with InteractableActor, telling it this player instigated the interaction
-						IInteractable::Execute_Interact(InteractableActor, this);
-						SoundToPlay = InteractionSucceededCue;
-					}
-					// Elsewise, we hit something but it's not interactable:
-					else
-					{
-						SoundToPlay = InteractionFailedCue;
-					}
-					
-					// Play a sound to feed back the interaction's result to the player.
-					UGameplayStatics::PlaySoundAtLocation(this, SoundToPlay, TraceEndPosition);
-					
-					// Ban interacting
-					SetCanInteract(false);
-
-					// Allow the player to interact after the cooldown has finished.
-					FTimerDelegate InteractionCooldownDelegate;
-					InteractionCooldownDelegate.BindUFunction(this, FName("SetCanInteract"), true);
-
-					GetWorldTimerManager().SetTimer(InteractionCooldownHandle, InteractionCooldownDelegate, InteractionCooldown, false);
-
-					// React to this interaction
-					OnInteracted();
+					// Interact with InteractableActor, telling it this player instigated the interaction
+					IInteractable::Execute_Interact(InteractableActor, this);
+					SoundToPlay = InteractionSucceededCue;
 				}
+
+				// Play a sound to feed back the interaction's result to the player.
+				UGameplayStatics::PlaySoundAtLocation(this, SoundToPlay, TraceEndPosition);
+
+				// Ban interacting
+				SetCanInteract(false);
+
+				// Allow the player to interact after the cooldown has finished.
+				FTimerDelegate InteractionCooldownDelegate;
+				InteractionCooldownDelegate.BindUFunction(this, FName("SetCanInteract"), true);
+
+				GetWorldTimerManager().SetTimer(InteractionCooldownHandle, InteractionCooldownDelegate, InteractionCooldown, false);
+
+				// React to this interaction
+				OnInteracted();
 			}
 		}
 	}
