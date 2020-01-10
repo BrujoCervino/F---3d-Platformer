@@ -19,6 +19,7 @@ APlatformerCharacter::APlatformerCharacter()
 	// * Movement & Camera
 	BaseTurnRate(45.0f),
 	BaseLookUpRate(45.0f),
+	//bUseOneHandedCamera(false), // Read this from a .ini, because it's player preference
 	// * Air Dash
 	DashSpeed(200.0f),
 	bCanAirDash(true),
@@ -87,12 +88,14 @@ APlatformerCharacter::APlatformerCharacter()
 	{
 		// For now, ensure Game.ini contains our config variables.
 		// Setting them NEEDS to be moved to another class
-		GConfig->SetBool(TEXT("F.Abilities.Air Dash"), TEXT("bAirDashIsCameraRelative"), false, GGameIni);
+		GConfig->SetBool(TEXT("F.Abilities.Air Dash"), GET_MEMBER_NAME_STRING_CHECKED(APlatformerCharacter, bAirDashIsCameraRelative), false, GGameIni);
+		GConfig->SetBool(TEXT("F.Abilities.Air Dash"), GET_MEMBER_NAME_STRING_CHECKED(APlatformerCharacter, bUseOneHandedCamera), false, GGameIni);
+		
 		GConfig->Flush(false, GGameIni);
 
 		// Load player-tweakable variables from the main game config file:
 		bool bTemp = false;
-		if (GConfig->GetBool(TEXT("F.Abilities.Air Dash"), TEXT("bAirDashIsCameraRelative"), bTemp, GGameIni))
+		if (GConfig->GetBool(TEXT("F.Abilities.Air Dash"), GET_MEMBER_NAME_STRING_CHECKED(APlatformerCharacter, bAirDashIsCameraRelative), bTemp, GGameIni))
 		{
 			bAirDashIsCameraRelative = bTemp;
 		}
@@ -102,6 +105,12 @@ APlatformerCharacter::APlatformerCharacter()
 			UE_LOG(LogTemp, Error, TEXT("%s is not defined within %s"), GET_MEMBER_NAME_STRING_CHECKED(APlatformerCharacter, bAirDashIsCameraRelative), *GGameIni);
 		}
 #endif // !UE_BUILD_SHIPPING
+
+		bool bTemp2 = false;
+		if(GConfig->GetBool(TEXT("F.Abilities.Air Dash"), GET_MEMBER_NAME_STRING_CHECKED(APlatformerCharacter, bUseOneHandedCamera), bTemp, GGameIni))
+		{ 
+			bUseOneHandedCamera = bTemp2;
+		}
 	}
 
 	// Note: The skeletal mesh and anim blueprint references on the Mesh component (inherited from Character) 
@@ -120,6 +129,13 @@ void APlatformerCharacter::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
+	// TODO: Remove this from Tick: once enabled, it should call APlatformerCharacter::FacePlayerDirection
+	// and disable camera input (event-based approach).
+	if (bUseOneHandedCamera)
+	{
+		// Accessibility: lock the camera to the mesh's forward vector	
+		FacePlayerDirection();
+	}
 }
 
 // Called to bind functionality to input
@@ -255,7 +271,7 @@ void APlatformerCharacter::AirDash()
 			return;
 		}
 
-		if ((nullptr != Controller) && (DashSpeed != 0.0f))
+		if ((nullptr != Controller) && (0.0f != DashSpeed ))
 		{
 			// find out which way is forward
 			const FRotator YawRotation(
