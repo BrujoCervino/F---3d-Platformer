@@ -8,6 +8,9 @@
 
 // WARNING/TODO: THE CONFIG VARIABLES NEED TO BE SETTABLE FROM WITHIN THE UI.
 // TODO: look into events within Misc/CoreDelegates.h : lots of goodies in there.
+// TODO: Secondary air dash should only be executable within a few seconds of shrinking down. If unused, set used to true. 
+// This makes the ability properly advanced and chainable
+// TODO: ResetSceneFringeIntensity should lerp in a V shape: lerp to DamagedIntensity for about 20% of the time, StandardIntensity for 80% of the time
 /* TODO: revamp interaction trace system: 
 * Should be toggleable between camera- and character relative 
 * Probably use a capsule component attachable to camera or mesh (avoids mess within Tick)
@@ -17,6 +20,9 @@
 
 class UCameraComponent;
 class UCameraShake;
+class UForceFeedbackEffect;
+class UMaterialParameterCollection;
+class UMaterialParameterCollectionInstance;
 class USoundCue;
 class USpringArmComponent;
 
@@ -111,6 +117,160 @@ private:
 
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	//
+	//		Basics: Damage
+	//
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+public:
+	
+	// Apply damage to this actor (see AActor::TakeDamage)
+	virtual float TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser) override;
+
+	// Kills this player then calls Respawn
+	UFUNCTION(BlueprintCallable, Category = "Damage", meta=(BlueprintProtected))
+	virtual void Die(AActor* Killer);
+	// Expose the Die event to Blueprint scripting
+	UFUNCTION(BlueprintImplementableEvent, Category = "Damage", meta = (BlueprintProtected))
+	void OnDied(AActor* Killer);
+
+	// Register a checkpoint, for future respawns
+	UFUNCTION(BlueprintCallable, Category = "Damage", meta = (BlueprintProtected))
+	void RegisterCheckpoint(AActor const * const CheckpointActor);
+
+	// Returns bInvincible
+	bool IsInvincible() const { return bInvincible; }
+
+	// Returns MaxHealth
+	float GetMaxHealth() const { return MaxHealth; }
+	// Returns Health
+	float GetHealth() const { return Health; }
+
+protected:
+
+	// Plays the death transition, then respawns
+	UFUNCTION(Category = "Damage")
+	virtual void Prerespawn();
+
+	// Called upon death: restarts the player from the most recent checkpoint
+	virtual void Respawn();
+
+	// Sets bInvincible
+	UFUNCTION(Category = "Damage")
+	void SetInvincible(const bool bNewInvincible);
+
+	// Interpolates FollowCamera->PostProcessSettings.SceneFringeIntensity from DamagedSceneFringeIntensity
+	//	to StandardSceneFringeIntensity
+	UFUNCTION(Category = "Damage")
+	void ResetSceneFringe();
+
+private:
+
+	// Whether this character can take damage from hazards or enemies (different to the more general AActor::bCanBeDamaged)
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Damage", meta = (AllowPrivateAccess = "true")) 
+	uint32 bInvincible : 1;
+
+	// How long to apply invincibility when this character has just taken damage
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Damage", meta = (AllowPrivateAccess = "true")) 
+	float InvincibilityDuration;
+
+	// The handle for temporary invincibility (after taking damage from hazards or enemies)
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Damage", meta = (AllowPrivateAccess = "true")) 
+	FTimerHandle InvincibilityTimerHandle;
+
+	// The health of this character when health is fully restored.
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Damage", meta = (AllowPrivateAccess = "true")) 
+	float MaxHealth;
+
+	// The current health of this character
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Damage", meta = (AllowPrivateAccess = "true")) 
+	float Health;
+
+	// The amount this character will be launched by when damaged
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Damage", meta = (AllowPrivateAccess = "true"))
+	float DamagedLaunchStrength;
+
+	// The colour this character will turn when damaged
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Damage", meta = (AllowPrivateAccess = "true")) 
+	FLinearColor DamagedColour;
+
+	// The camera shake to play when damaged
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Damage", meta = (AllowPrivateAccess = "true"))
+	TSubclassOf<UCameraShake> DamagedCameraShake;
+
+	// The sound to play when damaged
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Damage", meta = (AllowPrivateAccess = "true"))
+	USoundCue* DamagedSound;
+
+	// The vibration to play when damaged
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Damage", meta = (AllowPrivateAccess = "true"))
+	UForceFeedbackEffect* DamagedVibration;
+
+	// The scene fringe (chromatic abberation) intensity applied during normal gameplay
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Damage", meta = (AllowPrivateAccess = "true")) 
+	float StandardSceneFringeIntensity;
+
+	// The scene fringe (chromatic abberation) intensity applied when damaged
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Damage", meta = (AllowPrivateAccess = "true")) 
+	float DamagedSceneFringeIntensity;
+
+	// How long the scene fringe will take to fade back to normal
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Damage", meta = (AllowPrivateAccess = "true")) 
+	float SceneFringeResetDuration;
+
+	// The timer handle for resetting chromatic aberration after taking damage
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Damage", meta = (AllowPrivateAccess = "true")) 
+	FTimerHandle SceneFringeResetTimerHandle;
+
+	// The location of the last encountered checkpoint. This character will respawn here after death
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Damage", meta = (AllowPrivateAccess = "true"))
+	FVector MostRecentCheckpointLocation;
+
+	// The sound played when registering a checkpoint
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Damage", meta = (AllowPrivateAccess = "true"))
+	USoundCue* CheckpointRegisteredCue;
+
+	// The colour this player will glow when registering a checkpoint
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Damage", meta = (AllowPrivateAccess = "true"))
+	FLinearColor CheckpointRegisteredColour;
+
+	// The name of the scalar parameter used for the radius of the death transition
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Damage", meta = (AllowPrivateAccess = "true"))
+	FName DeathTransitionRadiusName;
+
+	// 
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Damage", meta = (AllowPrivateAccess = "true"))
+	float DeathTransitionRadiusProgress;
+
+	// The material parameter collection type used with the death transition
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Damage", meta = (AllowPrivateAccess = "true"))
+	UMaterialParameterCollection* DeathTransitionMaterialParamCollectionType;
+
+	// 
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Damage", meta = (AllowPrivateAccess = "true"))
+	UMaterialParameterCollectionInstance* DeathTransitionMaterialParamCollectionInst;
+
+	// 
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Damage", meta = (AllowPrivateAccess = "true"))
+	float DeathTransitionTimerFrequency;
+
+	//
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Damage", meta = (AllowPrivateAccess = "true")) 
+	FTimerHandle DeathTransitionTimerHandle;
+
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+	//
+	//		Game Feel
+	//
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+public:
+
+	// Applies a temporary radial glow to the main mesh's material
+	// (To be used when collecting a pickup or taking damage) 
+	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable, Category = "GameFeel", meta = (BlueprintProtected))
+	void ApplyRadialColour(const FLinearColor& GlowColour);
+
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+	//
 	//		Abilities: Air Dash
 	//
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -120,7 +280,7 @@ protected:
 	// Propell the character forwards (character- or camera-relative)
 	virtual void AirDash();
 
-	// Getter and setter for bCanAirDash
+	// Accessors for bCanAirDash
 	inline bool CanAirDash() const { return bCanAirDash; }
 	void SetCanAirDash(const bool bNewCanAirDash);
 
@@ -171,7 +331,7 @@ protected:
 	UFUNCTION(BlueprintImplementableEvent, Category = "Abilities|Shrink", meta = (BlueprintProtected))
 	void OnShrinkToggled();
 
-	// Getter and setter for bCanShrink
+	// Accessors for bCanShrink
 	inline bool CanShrink() const { return bCanShrink; }
 	UFUNCTION()
 	void SetCanShrink(const bool bNewCanShrink);
@@ -183,8 +343,12 @@ protected:
 private:
 
 	// Whether this character is allowed to shrink at the current time
-	UPROPERTY(VisibleAnywhere,BlueprintReadWrite, Category="Abilities|Shrink", meta=(AllowPrivateAccess="true"))
+	UPROPERTY(VisibleAnywhere,BlueprintReadWrite, Category = "Abilities|Shrink", meta = (AllowPrivateAccess = "true"))
 	uint32 bCanShrink : 1;
+
+	// The camera shake to play when the player toggles shrink 
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Abilities|Shrink", meta = (AllowPrivateAccess = "true"))
+	TSubclassOf<UCameraShake> ShrinkToggledCameraShake;
 
 	// The sound played when shrinking
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Abilities|Shrink", meta = (AllowPrivateAccess = "true"))

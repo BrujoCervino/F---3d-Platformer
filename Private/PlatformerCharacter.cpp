@@ -6,8 +6,11 @@
 #include "Kismet/KismetSystemLibrary.h" // CapsuleTrace
 #include "Camera/CameraComponent.h"
 #include "GameFramework/SpringArmComponent.h"
+#include "GameFramework/ForceFeedbackEffect.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "Materials/MaterialParameterCollection.h"
+#include "Materials/MaterialParameterCollectionInstance.h"
 #include "Misc/ConfigCacheIni.h" // Config (ini) variables
 #include "Sound/SoundCue.h"
 #include "TimerManager.h" // Timers
@@ -20,6 +23,30 @@ APlatformerCharacter::APlatformerCharacter()
 	BaseTurnRate(45.0f),
 	BaseLookUpRate(45.0f),
 	//bUseOneHandedCamera(false), // Read this from a .ini, because it's player preference
+	// * Damage
+	bInvincible(false),
+	InvincibilityDuration(1.5f),
+	InvincibilityTimerHandle(),
+	MaxHealth(3.0f),
+	Health(MaxHealth),
+	DamagedLaunchStrength(600.0f),
+	DamagedColour(FColor::Red),
+	DamagedCameraShake(UCameraShake::StaticClass()),
+	DamagedSound(nullptr),
+	DamagedVibration(nullptr),
+	StandardSceneFringeIntensity(0.6f), // Maybe this should be set later, from postinitcomps: could read from the actual postprocessing
+	DamagedSceneFringeIntensity(5.0f),
+	SceneFringeResetDuration(0.5f),
+	SceneFringeResetTimerHandle(),
+	MostRecentCheckpointLocation(FVector::ZeroVector),
+	CheckpointRegisteredCue(nullptr),
+	CheckpointRegisteredColour(FColor::Magenta),
+	DeathTransitionRadiusName(),
+	DeathTransitionRadiusProgress(0.0f),
+	DeathTransitionMaterialParamCollectionType(nullptr),
+	DeathTransitionMaterialParamCollectionInst(nullptr),
+	DeathTransitionTimerFrequency(0.1f),
+	DeathTransitionTimerHandle(),
 	// * Air Dash
 	DashSpeed(200.0f),
 	bCanAirDash(true),
@@ -30,6 +57,7 @@ APlatformerCharacter::APlatformerCharacter()
 	// bAirDashIsCameraRelative(false) // Read this from a .ini, because it's player preference
 	// * Shrink
 	bCanShrink(true),
+	ShrinkToggledCameraShake(UCameraShake::StaticClass()),
 	ShrinkSound(nullptr),
 	SizeUpSound(nullptr),
 	ShrunkScale(0.4f),
@@ -122,6 +150,12 @@ void APlatformerCharacter::BeginPlay()
 {
 	Super::BeginPlay();
 
+	MostRecentCheckpointLocation = GetActorLocation();
+	
+	if (UWorld* const CurrentWorld = GetWorld())
+	{
+		CurrentWorld->GetParameterCollectionInstance(DeathTransitionMaterialParamCollectionType);
+	}
 }
 
 // Called every frame
@@ -219,6 +253,8 @@ void APlatformerCharacter::MoveRight(float Value)
 void APlatformerCharacter::FellOutOfWorld(const UDamageType& dmgType)
 {
 	// Don't call Super::FellOutOfWorld, as we don't want to destroy this actor
+	Die(nullptr);
+
 	OnFellOutOfWorld();
 }
 
@@ -247,6 +283,154 @@ void APlatformerCharacter::FacePlayerDirection()
 {
 	// Get the mesh's right vector as a rotator
 	Controller->SetControlRotation(GetMesh()->GetRightVector().ToOrientationRotator());
+}
+
+float APlatformerCharacter::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser)
+{
+	float ActualDamage = 0.0f;
+	
+	// Avoids continuous damage (uses invincibility frames):
+	// If this player can take damage,
+	if (!bInvincible)
+	{
+		ActualDamage = AActor::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
+		
+		// Temporarily make this player invincible
+		bInvincible = true;
+
+		// Set a timer which disables invincibility
+		static const FName SetInvincibleFunctionName = GET_FUNCTION_NAME_CHECKED(APlatformerCharacter, SetInvincible);
+		
+		FTimerDelegate InvincibilityDelegate;
+		InvincibilityDelegate.BindUFunction(this, SetInvincibleFunctionName, false);
+		
+		GetWorldTimerManager().SetTimer(InvincibilityTimerHandle, InvincibilityDelegate, InvincibilityDuration, false);
+
+		// Apply the damage
+		Health -= ActualDamage;
+
+		// If health reaches 0 or lower,
+		if (FMath::Min(Health, 0.0f) == Health)
+		{
+			// This player has died
+			Die(DamageCauser);
+		}
+		else
+		{
+			// React to the damage the player just took:
+			// Flash a different colour
+			ApplyRadialColour(DamagedColour);
+			
+			// Launch the character 
+			FVector const DamagedJumpVelocity = FVector::UpVector * DamagedLaunchStrength;
+			LaunchCharacter(DamagedJumpVelocity, false, true);
+
+			if (FollowCamera)
+			{
+				// Distort the scene subtly, for player feedback
+				FollowCamera->PostProcessSettings.SceneFringeIntensity = DamagedSceneFringeIntensity;
+
+				// Interpolate back to the scene's look before distortion
+				GetWorldTimerManager().SetTimer(SceneFringeResetTimerHandle, this, &APlatformerCharacter::ResetSceneFringe,SceneFringeResetDuration, false);
+			}
+			// For feedback:
+			// Play a sound
+			UGameplayStatics::PlaySoundAtLocation(this, DamagedSound, GetActorLocation());
+
+			// Play a screenshake and a vibration 
+			if (APlayerController* const PC = Cast<APlayerController, AController>(Controller))
+			{
+				PC->ClientPlayCameraShake(DamagedCameraShake);
+				PC->ClientPlayForceFeedback(DamagedVibration);
+			}
+		}
+	}
+	return ActualDamage;
+}
+
+void APlatformerCharacter::Die(AActor* Killer)
+{
+	OnDied(Killer);
+	
+	// This should be called on a timer
+	Respawn();
+
+	///////GetWorldTimerManager().SetTimer(DeathTransitionTimerHandle, this, &APlatformerCharacter::Prerespawn, DeathTransitionTimerFrequency, true);
+}
+
+void APlatformerCharacter::Prerespawn()
+{
+	DeathTransitionRadiusProgress += 0.1f;
+	if (DeathTransitionRadiusProgress <= 1.0f)
+	{
+		check(DeathTransitionMaterialParamCollectionInst);
+		// Set the MPC parameter
+		DeathTransitionMaterialParamCollectionInst->SetScalarParameterValue
+		(
+			DeathTransitionRadiusName, 
+			FMath::Lerp(0.0f, 1.0f, DeathTransitionRadiusProgress)
+		);
+	}
+	else
+	{
+		Respawn();
+		GetWorldTimerManager().ClearTimer(DeathTransitionTimerHandle);
+	}
+}
+
+void APlatformerCharacter::Respawn()
+{
+	// Restore health to maximum
+	Health = MaxHealth;
+
+	// Place the character at the location of the last encountered checkpoint
+	SetActorLocation(MostRecentCheckpointLocation);
+
+	// Avoids the common glitch in games, where a small amount of velocity is kept by a respawned player
+	// (which could be built up to speed/teleport through the level)
+	if (GetCharacterMovement())
+	{
+		GetCharacterMovement()->Velocity = FVector::ZeroVector;
+	}
+
+	// Ensure the player is not shrunk
+	CustomTimeDilation = StandardTimeDilation;
+	SetActorScale3D( FVector(StandardScale) );
+}
+
+void APlatformerCharacter::RegisterCheckpoint(AActor const * const CheckpointActor)
+{
+	// If the checkpoint actor was valid,
+	if (CheckpointActor)
+	{
+		// Let its location be the last known checkpoint
+		FVector const & CheckpointLoc = CheckpointActor->GetActorLocation();
+		MostRecentCheckpointLocation = CheckpointLoc;
+
+		// Play a sound, for feedback
+		UGameplayStatics::PlaySoundAtLocation(this, CheckpointRegisteredCue, CheckpointLoc);
+		// Change this player's colour, for feedback
+		ApplyRadialColour(CheckpointRegisteredColour);
+	}
+}
+
+void APlatformerCharacter::SetInvincible(const bool bNewInvincible)
+{
+	bInvincible = bNewInvincible;
+}
+
+void APlatformerCharacter::ResetSceneFringe()
+{
+	if (FollowCamera)
+	{
+		// Get the normalised result of the elapsed time into the duration of the timer. 
+		const float TimeRemaining = GetWorldTimerManager().GetTimerElapsed(SceneFringeResetTimerHandle);
+		const float& MaxTime = SceneFringeResetDuration;
+		const float NormalisedTimeRemaining = TimeRemaining / MaxTime;
+		// Lerp by this, into resetting the postprocessing
+		FollowCamera->PostProcessSettings.SceneFringeIntensity = 
+			FMath::Lerp(DamagedSceneFringeIntensity, StandardSceneFringeIntensity, NormalisedTimeRemaining);
+	}
 }
 
 void APlatformerCharacter::AirDash()
@@ -340,10 +524,12 @@ void APlatformerCharacter::ToggleShrink()
 				}
 
 				// Shrink or unshrink the player
-				const FVector VectorisedScaleToApply = FVector::OneVector * ScaleToApply;
+				const FVector VectorisedScaleToApply = FVector(ScaleToApply);
 				SetActorScale3D(VectorisedScaleToApply);
 				// Play a sound
 				UGameplayStatics::PlaySoundAtLocation(this, SoundToPlay, GetActorLocation());
+				// Play a camera shake
+				PC->ClientPlayCameraShake(ShrinkToggledCameraShake);
 				// Slow or speed back up time, so the resized character feels different to play:
 				// A shrunk player is slower for player choice/risk versus reward:
 				// (pro: "weightless" floatier jumps 
@@ -383,6 +569,8 @@ void APlatformerCharacter::TraceForInteractables()
 {
 	if (bCanInteract && (nullptr != FollowCamera))
 	{
+		// The interaction system needs a revamp: I'll probably use an extra capsule component to trace for interactables, 
+		// to avoid the awkwardness of pointing the camera to 
 		const FVector& CamLoc = FollowCamera->GetComponentLocation();
 		const FVector TraceEndPosition = (FollowCamera->GetForwardVector() * InteractionTraceLength) + CamLoc;
 
@@ -424,12 +612,14 @@ void APlatformerCharacter::TraceForInteractables()
 				SetCanInteract(false);
 
 				// Allow the player to interact after the cooldown has finished.
+				static const FName SetCanInteractFunctionName = GET_FUNCTION_NAME_CHECKED(APlatformerCharacter, SetCanInteract);
+				
 				FTimerDelegate InteractionCooldownDelegate;
-				InteractionCooldownDelegate.BindUFunction(this, FName("SetCanInteract"), true);
+				InteractionCooldownDelegate.BindUFunction(this, SetCanInteractFunctionName, true);
 
 				GetWorldTimerManager().SetTimer(InteractionCooldownHandle, InteractionCooldownDelegate, InteractionCooldown, false);
 
-				// React to this interaction
+				// React to this interaction, via Blueprint scripting
 				OnInteracted();
 			}
 		}
