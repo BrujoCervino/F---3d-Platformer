@@ -258,18 +258,18 @@ private:
 
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	//
-	//		Basics: Collectables
+	//		Basics: Collectables: Keys
 	//
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 public:
 
 	// Uses a key if one is available (masks APlatformerPlayerController::UseKey).
-	UFUNCTION(BlueprintCallable)
+	UFUNCTION(BlueprintCallable, Category = "Collectables")
 	bool UseKey();
 
 	// Gives a key to this character (masks APlatformerPlayerController::GiveKey).
-	UFUNCTION(BlueprintCallable)
+	UFUNCTION(BlueprintCallable, Category = "Collectables")
 	bool GiveKey();
 
 private:
@@ -277,6 +277,17 @@ private:
 	// The colour this player will glow when collecting a key.
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Collectables", meta = (AllowPrivateAccess = "true"))
 	FLinearColor KeyCollectedColour;
+
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+	//
+	//		Basics: Collectables: Skill Points
+	//
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+public:
+
+	// Grants a skill point to this player (masks APlayerController::GrantSkillPoint).
+	bool GrantSkillPoint();
 
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	//
@@ -339,28 +350,33 @@ private:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Abilities|Air Dash", meta = (AllowPrivateAccess = "true"))
 	uint32 bAirDashIsCameraRelative : 1;
 
-protected:
-
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	//
 	//		Abilities: Shrink
 	//
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-	// Toggle this character between a tiny version of itself, able to reach small spaces, and the standard version
-	virtual void ToggleShrink();
-	// Notify the Blueprint this player changed size, so it can add prototypical features.
-	UFUNCTION(BlueprintImplementableEvent, Category = "Abilities|Shrink", meta = (BlueprintProtected))
-	void OnShrinkToggled();
+public:
 
+	// Whether the player is currently shrunk. 
+	// (Maybe it needs its own flag aside from just checking the scale?)
+	bool IsShrunk() const;
+
+	// Ensure this player is not shrunk. Use this to bank shrinking in certain areas/conditions.
+	void EnsureStandardSize(const bool bShouldPlaySound = true);
+	
 	// Accessors for bCanShrink
 	inline bool CanShrink() const { return bCanShrink; }
 	UFUNCTION()
 	void SetCanShrink(const bool bNewCanShrink);
 
-	// Whether the player is currently shrunk. 
-	// (Maybe it needs its own flag aside from just checking the scale?)
-	bool IsShrunk() const;
+protected:
+
+	// Toggle this character between a tiny version of itself, able to reach small spaces, and the standard version
+	virtual void ToggleShrink();
+	// Notify the Blueprint this player changed size, so it can add prototypical features.
+	UFUNCTION(BlueprintImplementableEvent, Category = "Abilities|Shrink", meta = (BlueprintProtected))
+	void OnShrinkToggled();
 
 private:
 

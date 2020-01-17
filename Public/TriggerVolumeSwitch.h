@@ -31,7 +31,7 @@ public:
 	virtual void NotifyActorEndOverlap(AActor* OtherActor) override;
 
 	//~ Begin IInteractable Interface
-	virtual void Interact_Implementation(AActor* Interactor) override;
+	virtual void Interact_Proper(AActor* Interactor) override;
 	//~ End IInteractable Interface
 
 protected:

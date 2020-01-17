@@ -34,7 +34,9 @@ public:
 
 public:
 	//~ Begin IInteractable Interface
-	virtual void Interact_Implementation(AActor* Interactor) override;
+	virtual void Interact_Proper(AActor* Interactor) override;
+
+	virtual void ReceiveInteract_Implementation(AActor* Interactor) override {}
 	//~ End IInteractable Interface
 
 	// Getter for ActorsToActivate

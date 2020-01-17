@@ -34,7 +34,7 @@ void ASwitch::Tick(float DeltaTime)
 
 }
 
-void ASwitch::Interact_Implementation(AActor * Interactor)
+void ASwitch::Interact_Proper(AActor * Interactor)
 {	
 	// If this switch can only be used once,
 	if (bExecuteOnce)
@@ -58,7 +58,7 @@ void ASwitch::Interact_Implementation(AActor * Interactor)
 		{
 			if (It->Implements<UInteractable>())
 			{
-				IInteractable::Execute_Interact(It, this);
+				IInteractable::Execute_ReceiveInteract(It, this);
 			}
 		}
 	}
@@ -71,6 +71,6 @@ void ASwitch::Interact_Implementation(AActor * Interactor)
 	bIsActive = !bIsActive;
 
 	// Call the Blueprint version of this function: this helps us to rapidly add prototypical features to this function
-	IInteractable::Execute_Interact(this, Interactor);
+	IInteractable::Execute_ReceiveInteract(this, Interactor);
 }
 

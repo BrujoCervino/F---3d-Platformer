@@ -20,7 +20,7 @@ void ATriggerVolumeSwitch::NotifyActorBeginOverlap(AActor * OtherActor)
 {
 	AActor::NotifyActorBeginOverlap(OtherActor);
 
-	Interact_Implementation(OtherActor);
+	Interact_Proper(OtherActor);
 }
 
 void ATriggerVolumeSwitch::NotifyActorEndOverlap(AActor * OtherActor)
@@ -29,12 +29,12 @@ void ATriggerVolumeSwitch::NotifyActorEndOverlap(AActor * OtherActor)
 	
 	if (bEndOverlapCausesInteraction)
 	{
-		Interact_Implementation(OtherActor);
+		Interact_Proper(OtherActor);
 	}
 }
 
-void ATriggerVolumeSwitch::Interact_Implementation(AActor * Interactor)
+void ATriggerVolumeSwitch::Interact_Proper(AActor * Interactor)
 {
-	ASwitch::Interact_Implementation(Interactor);
+	ASwitch::Interact_Proper(Interactor);
 
 }

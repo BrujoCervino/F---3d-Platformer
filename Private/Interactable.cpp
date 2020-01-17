@@ -5,7 +5,12 @@
 
 // Add default functionality here for any IInteractable functions that are not pure virtual.
 
-void IInteractable::Interact_Implementation(AActor * Instigator)
+void IInteractable::Interact_Proper(AActor* Interactor)
+{
+
+}
+
+void IInteractable::ReceiveInteract_Implementation(AActor * Instigator)
 {
 	
 }

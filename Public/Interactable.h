@@ -21,8 +21,14 @@ class F_API IInteractable
 
 	// Add interface functions to this class. This is the class that will be inherited to implement this interface.
 public:
-	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable)
-	void Interact(AActor* Interactor);
-	virtual void Interact_Implementation(AActor* Interactor);
+	
+	//UFUNCTION(BlueprintCallable)
+	virtual void Interact_Proper(AActor* Interactor);
 
+	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable, meta=(DisplayName="Interact"))
+	void ReceiveInteract(AActor* Interactor);
+	virtual void ReceiveInteract_Implementation(AActor* Interactor);
+
+	UFUNCTION(BlueprintNativeEvent)
+	void TestEvent();
 };

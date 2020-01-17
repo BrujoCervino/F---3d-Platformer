@@ -396,8 +396,7 @@ void APlatformerCharacter::Respawn()
 	}
 
 	// Ensure the player is not shrunk
-	CustomTimeDilation = StandardTimeDilation;
-	SetActorScale3D( FVector(StandardScale) );
+	EnsureStandardSize(false);
 
 	// Ensure the player is not stomping
 	if (GetCharacterMovement())
@@ -469,6 +468,19 @@ bool APlatformerCharacter::GiveKey()
 	ApplyRadialColour(KeyCollectedColour);
 
 	return bGaveKey;
+}
+
+bool APlatformerCharacter::GrantSkillPoint()
+{
+	// If the player controller is valid, grant a skill point
+	bool bSuccess = false;
+	if (APlatformerPlayerController* const PC = Cast<APlatformerPlayerController, AController>(Controller))
+	{
+		PC->GrantSkillPoint();
+		bSuccess = true;
+	}
+
+	return bSuccess;
 }
 
 void APlatformerCharacter::AirDash()
@@ -604,6 +616,17 @@ bool APlatformerCharacter::IsShrunk() const
 	return VectorisedShrunkScale.Equals(CurrentScale, 0.01f);
 }
 
+void APlatformerCharacter::EnsureStandardSize(const bool bShouldPlaySound /*= true*/)
+{
+	CustomTimeDilation = StandardTimeDilation;
+	SetActorScale3D(FVector(StandardScale));
+
+	if (bShouldPlaySound)
+	{
+		UGameplayStatics::PlaySoundAtLocation(this, SizeUpSound, GetActorLocation());
+	}
+}
+
 void APlatformerCharacter::TraceForInteractables()
 {
 	if (bCanInteract && (nullptr != FollowCamera))
@@ -640,7 +663,7 @@ void APlatformerCharacter::TraceForInteractables()
 				if (!InteractableActor->IsPendingKill() && InteractableActor->Implements<UInteractable>())
 				{
 					// Interact with InteractableActor, telling it this player instigated the interaction
-					IInteractable::Execute_Interact(InteractableActor, this);
+					IInteractable::Execute_ReceiveInteract(InteractableActor, this);
 					SoundToPlay = InteractionSucceededCue;
 				}
 
