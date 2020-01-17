@@ -47,6 +47,8 @@ APlatformerCharacter::APlatformerCharacter()
 	DeathTransitionMaterialParamCollectionInst(nullptr),
 	DeathTransitionTimerFrequency(0.1f),
 	DeathTransitionTimerHandle(),
+	// * Collectables
+	KeyCollectedColour(FColor::Orange),
 	// * Air Dash
 	DashSpeed(200.0f),
 	bCanAirDash(true),
@@ -396,6 +398,15 @@ void APlatformerCharacter::Respawn()
 	// Ensure the player is not shrunk
 	CustomTimeDilation = StandardTimeDilation;
 	SetActorScale3D( FVector(StandardScale) );
+
+	// Ensure the player is not stomping
+	if (GetCharacterMovement())
+	{
+		GetCharacterMovement()->GravityScale = StandardGravityScale;
+	}
+
+	// Ensure the player is not invincible
+	bInvincible = false;
 }
 
 void APlatformerCharacter::RegisterCheckpoint(AActor const * const CheckpointActor)
@@ -433,6 +444,33 @@ void APlatformerCharacter::ResetSceneFringe()
 	}
 }
 
+bool APlatformerCharacter::UseKey()
+{
+	// If the player controller exists, try to use a key.
+	bool bUsedKey = false;
+	if (APlatformerPlayerController* const PC = Cast<APlatformerPlayerController, AController>(Controller))
+	{
+		bUsedKey = PC->UseKey();
+	}
+
+	return bUsedKey;
+}
+
+bool APlatformerCharacter::GiveKey()
+{
+	// If the player controller exists, give a key to this player.
+	bool bGaveKey = false;
+	if (APlatformerPlayerController* const PC = Cast<APlatformerPlayerController, AController>(Controller))
+	{
+		PC->GiveKey();
+		bGaveKey = true;
+	}
+
+	ApplyRadialColour(KeyCollectedColour);
+
+	return bGaveKey;
+}
+
 void APlatformerCharacter::AirDash()
 {
 	// If this character can dash and is in the air,
@@ -458,7 +496,8 @@ void APlatformerCharacter::AirDash()
 		if ((nullptr != Controller) && (0.0f != DashSpeed ))
 		{
 			// find out which way is forward
-			const FRotator YawRotation(
+			const FRotator YawRotation
+			(
 				0.0f,
 				Controller->GetControlRotation().Yaw,
 				0.0f

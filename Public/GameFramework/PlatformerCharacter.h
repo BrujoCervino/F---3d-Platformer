@@ -258,6 +258,28 @@ private:
 
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	//
+	//		Basics: Collectables
+	//
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+public:
+
+	// Uses a key if one is available (masks APlatformerPlayerController::UseKey).
+	UFUNCTION(BlueprintCallable)
+	bool UseKey();
+
+	// Gives a key to this character (masks APlatformerPlayerController::GiveKey).
+	UFUNCTION(BlueprintCallable)
+	bool GiveKey();
+
+private:
+
+	// The colour this player will glow when collecting a key.
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Collectables", meta = (AllowPrivateAccess = "true"))
+	FLinearColor KeyCollectedColour;
+
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+	//
 	//		Game Feel
 	//
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
