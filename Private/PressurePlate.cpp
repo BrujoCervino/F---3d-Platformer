@@ -43,9 +43,9 @@ void APressurePlate::NotifyActorEndOverlap(AActor * OtherActor)
 
 }
 
-void APressurePlate::Interact_Proper(AActor * Interactor)
+void APressurePlate::Interact(AActor * Interactor)
 {
-	ATriggerVolumeSwitch::Interact_Proper(Interactor);
+	ATriggerVolumeSwitch::Interact(Interactor);
 
 	if (nullptr != PlateMesh)
 	{

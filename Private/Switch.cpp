@@ -34,7 +34,7 @@ void ASwitch::Tick(float DeltaTime)
 
 }
 
-void ASwitch::Interact_Proper(AActor * Interactor)
+void ASwitch::Interact(AActor * Interactor)
 {	
 	// If this switch can only be used once,
 	if (bExecuteOnce)

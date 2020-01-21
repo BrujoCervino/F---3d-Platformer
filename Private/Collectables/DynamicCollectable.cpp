@@ -17,6 +17,13 @@ ADynamicCollectable::ADynamicCollectable()
 	static FName const InterpCompName = TEXT("InterpToMovementComponent");
 	InterpComp = CreateDefaultSubobject<UInterpToMovementComponent>(InterpCompName);
 	check(InterpComp);
+	// Add two control points, for basic oscillation
+	static FVector const a = FVector(FVector::UpVector * 10.0f);	
+	static FVector const b = FVector(FVector::UpVector * -10.0f);
+	InterpComp->AddControlPointPosition(a);
+	InterpComp->AddControlPointPosition(b);
+	// Ensure this collectable always oscillates by default
+	InterpComp->BehaviourType = EInterpToBehaviourType::PingPong;
 }
 
 void ADynamicCollectable::Tick(float DeltaTime)

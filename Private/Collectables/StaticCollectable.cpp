@@ -11,7 +11,7 @@ AStaticCollectable::AStaticCollectable()
 	GetMesh()->SetGenerateOverlapEvents(true);
 }
 
-void AStaticCollectable::Interact_Proper(AActor* Interactor)
+void AStaticCollectable::Interact(AActor* Interactor)
 {
 	OnCollected(Interactor);
 }

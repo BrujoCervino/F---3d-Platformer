@@ -283,6 +283,15 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Collectables")
 	bool GiveKey();
 
+	// Uses a key if one is available (masks APlatformerPlayerController::UseSecretKey).
+	UFUNCTION(BlueprintCallable, Category = "Collectables")
+	bool UseSecretKey();
+
+	// Gives a key to this character (masks APlatformerPlayerController::GiveSecretKey).
+	UFUNCTION(BlueprintCallable, Category = "Collectables")
+	bool GiveSecretKey();
+
+
 private:
 
 	// The colour this player will glow when collecting a key.

@@ -26,7 +26,7 @@ public:
 	virtual void NotifyActorEndOverlap(AActor* OtherActor) override;
 
 	//~ Begin IInteractable Interface
-	virtual void Interact_Proper(AActor* Interactor) override;
+	virtual void Interact(AActor* Interactor) override;
 	//~ End IInteractable Interface
 
 	// The plate on which the player stands to trigger this switch.

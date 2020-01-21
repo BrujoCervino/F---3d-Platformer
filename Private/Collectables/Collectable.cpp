@@ -3,12 +3,15 @@
 
 #include "Collectables/Collectable.h"
 #include "Components/StaticMeshComponent.h"
+#include "Kismet/GameplayStatics.h"
+#include "Sound/SoundCue.h"
 #include "Collector.h"
 
 // Sets default values
 ACollectable::ACollectable()
 	:
 	CollectableType(ECollectableTypes::None),
+	CollectedSound(nullptr),
 	bCollected(false)
 {
 	// Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
@@ -44,6 +47,9 @@ void ACollectable::OnCollected(AActor* Collector)
 
 			// Make this collectable invisible and untouchable
 			SetActorHiddenInGame(true);
+
+			// Play a sound, for player feedback
+			UGameplayStatics::PlaySoundAtLocation(this, CollectedSound, GetActorLocation());
 
 			// Notify Blueprint scripting that this collectable was picked up.
 			ICollector::Execute_ReceiveCollect(Collector, CollectableType);

@@ -27,4 +27,7 @@ public:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Abilities")
 	int32 Keys;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, meta = (BlueprintProtected = "true"))
+	int32 SecretKeys;
 };

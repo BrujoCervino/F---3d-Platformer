@@ -7,6 +7,8 @@
 #include "PlatformerTypes.h"
 #include "Collectable.generated.h"
 
+class USoundCue;
+
 UCLASS(Blueprintable)
 class F_API ACollectable
 	: public AActor
@@ -25,13 +27,13 @@ public:
 
 	// Called when this collectable is picked up by a collector
 	UFUNCTION(BlueprintCallable)
-		virtual void OnCollected(AActor* Collector);
+	virtual void OnCollected(AActor* Collector);
 	UFUNCTION(BlueprintImplementableEvent, meta = (Displayname = "OnCollected")) // Blueprint implementation
-		void ReceiveOnCollected(AActor* Collector);
+	void ReceiveOnCollected(AActor* Collector);
 
 	// Returns bCollected
 	UFUNCTION(BlueprintCallable, BlueprintPure)
-		inline bool HasBeenCollected() const { return bCollected; }
+	inline bool HasBeenCollected() const { return bCollected; }
 
 	// Returns mesh
 	inline UStaticMeshComponent* GetMesh() const { return Mesh; }
@@ -40,16 +42,22 @@ protected:
 
 	// The type associated with this collectable
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Collectable", meta = (BlueprintProtected = "true"))
-		TEnumAsByte<ECollectableTypes::Type> CollectableType;
+	TEnumAsByte<ECollectableTypes::Type> CollectableType;
+
+
 
 private:
 
 	// The default mesh associated with this collectable
-	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Collectable", meta = (AllowPrivateAccess = "true"))
-		UStaticMeshComponent* Mesh;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Collectable", meta = (AllowPrivateAccess = "true"))
+	UStaticMeshComponent* Mesh;
+
+	// The sound to play when this collectable has been picked up
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Collectable", meta = (AllowPrivateAccess = "true"))
+	USoundCue* CollectedSound;
 
 	// Whether this collectable has been collected.
 	UPROPERTY(EditDefaultsOnly, Category = "Collectable", meta = (AllowPrivateAccess = "true"))
-		uint32 bCollected : 1;
+	uint32 bCollected : 1;
 
 };

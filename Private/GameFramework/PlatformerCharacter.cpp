@@ -478,10 +478,12 @@ void APlatformerCharacter::Collect(const TEnumAsByte<ECollectableTypes::Type> Ty
 		}
 		case(ECollectableTypes::SmallKey):
 		{
+			GiveKey();
 			break;
 		}
 		case(ECollectableTypes::KeyToSecretLevel):
 		{
+			GiveSecretKey();
 			break;
 		}
 		case(ECollectableTypes::Plant):
@@ -507,7 +509,6 @@ void APlatformerCharacter::Collect(const TEnumAsByte<ECollectableTypes::Type> Ty
 	UGameplayStatics::PlaySoundAtLocation(this, CollectedSound, GetActorLocation());
 }
 
-
 bool APlatformerCharacter::UseKey()
 {
 	// If the player controller exists, try to use a key.
@@ -527,6 +528,33 @@ bool APlatformerCharacter::GiveKey()
 	if (APlatformerPlayerController* const PC = Cast<APlatformerPlayerController, AController>(Controller))
 	{
 		PC->GiveKey();
+		bGaveKey = true;
+	}
+
+	ApplyRadialColour(KeyCollectedColour);
+
+	return bGaveKey;
+}
+
+bool APlatformerCharacter::UseSecretKey()
+{
+	// If the player controller exists, try to use a key.
+	bool bUsedKey = false;
+	if (APlatformerPlayerController* const PC = Cast<APlatformerPlayerController, AController>(Controller))
+	{
+		bUsedKey = PC->UseSecretKey();
+	}
+
+	return bUsedKey;
+}
+
+bool APlatformerCharacter::GiveSecretKey()
+{
+	// If the player controller exists, give a key to this player.
+	bool bGaveKey = false;
+	if (APlatformerPlayerController* const PC = Cast<APlatformerPlayerController, AController>(Controller))
+	{
+		PC->GiveSecretKey();
 		bGaveKey = true;
 	}
 
@@ -728,7 +756,7 @@ void APlatformerCharacter::TraceForInteractables()
 					// Interact with InteractableActor, telling it this player instigated the interaction
 					if (IInteractable* const InteractableActorCast = Cast<IInteractable, AActor>(InteractableActor))
 					{
-						InteractableActorCast->Interact_Proper(this);
+						InteractableActorCast->Interact(this);
 					}
 
 					IInteractable::Execute_ReceiveInteract(InteractableActor, this);

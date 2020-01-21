@@ -47,11 +47,22 @@ void APlatformerPlayerController::GiveKey()
 	++Keys;
 }
 
-void APlatformerPlayerController::BeginPlay()
+bool APlatformerPlayerController::UseSecretKey()
 {
-	Super::BeginPlay();
+	// If this player has any keys,
+	const bool bUsedAKey = (SecretKeys > 0);
+	if (bUsedAKey)
+	{
+		// Use a key.
+		--SecretKeys;
+	}
 
-	LoadFromSaveData();
+	return bUsedAKey;
+}
+
+void APlatformerPlayerController::GiveSecretKey()
+{
+	++SecretKeys;
 }
 
 void APlatformerPlayerController::LoadFromSaveData()
@@ -60,6 +71,7 @@ void APlatformerPlayerController::LoadFromSaveData()
 	SkillPointsEarnt = 0;
 	SkillPointsSpent = 0;
 	Keys = 0;
+	SecretKeys = 0;
 
 	FString const SaveSlotName = TEXT("Player1");
 	int32 const SaveSlotIndex = 0;
@@ -75,6 +87,7 @@ void APlatformerPlayerController::LoadFromSaveData()
 			SkillPointsEarnt = SaveGame->SkillPointsEarnt;
 			SkillPointsSpent = SaveGame->SkillPointsSpent;
 			Keys = SaveGame->Keys;
+			SecretKeys = SaveGame->SecretKeys;
 		}
 	}
 

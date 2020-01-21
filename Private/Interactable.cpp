@@ -5,6 +5,6 @@
 
 // Add default functionality here for any IInteractable functions that are not pure virtual.
 
-void IInteractable::Interact_Proper(AActor* Interactor)
+void IInteractable::Interact(AActor* Interactor)
 {
 }

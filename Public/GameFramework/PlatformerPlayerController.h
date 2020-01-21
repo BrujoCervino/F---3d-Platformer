@@ -6,8 +6,6 @@
 #include "GameFramework/PlayerController.h"
 #include "PlatformerPlayerController.generated.h"
 
-// CONSIDER: I want the max to be 
-
 /**
  * The default player controller for this game
  * 
@@ -47,9 +45,16 @@ public:
 	UFUNCTION(BlueprintCallable)
 	virtual void GiveKey();
 
+	// If this character has enough secret keys, use one.
+	// Returns whether a key was used.
+	UFUNCTION(BlueprintCallable)
+	virtual bool UseSecretKey();
+
+	// Increments secret keys
+	UFUNCTION(BlueprintCallable)
+	virtual void GiveSecretKey();
+
 protected:
-	// Called when the game starts or when spawned
-	virtual void BeginPlay() override;
 
 	// Load game data, via a save file
 	void LoadFromSaveData();
@@ -67,7 +72,6 @@ protected:
 	// Skill points, gained by completing secret missions, are used to buy/upgrade new moves (shrink et cetera)
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-
 	// The number of skill points this player has earnt
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, meta = (BlueprintProtected = "true"))
 	int32 SkillPointsEarnt;
@@ -84,4 +88,8 @@ protected:
 	// The number of keys held by the player
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, meta = (BlueprintProtected = "true"))
 	int32 Keys;
+
+	// The number of secret keys held by the player
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, meta = (BlueprintProtected = "true"))
+	int32 SecretKeys;
 };

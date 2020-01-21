@@ -34,7 +34,7 @@ public:
 
 public:
 	//~ Begin IInteractable Interface
-	virtual void Interact_Proper(AActor* Interactor) override;
+	virtual void Interact(AActor* Interactor) override;
 
 	//virtual void Interact_Proper(AActor* Interactor) override {}
 	//~ End IInteractable Interface

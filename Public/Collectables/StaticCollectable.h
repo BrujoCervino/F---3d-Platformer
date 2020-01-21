@@ -23,7 +23,7 @@ public:
 
 	AStaticCollectable();
 
-	virtual void Interact_Proper(AActor* Interactor) override;
+	virtual void Interact(AActor* Interactor) override;
 
 	virtual void OnCollected(AActor* Collector) override;
 };

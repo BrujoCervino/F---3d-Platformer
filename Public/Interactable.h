@@ -22,12 +22,16 @@ class F_API IInteractable
 	// Add interface functions to this class. This is the class that will be inherited to implement this interface.
 public:
 	
-	virtual void Interact_Proper(AActor* Interactor);
+	// Be interacted by another actor.
+	// Param: AActor* Interactor: The instigator of the interaction.
+	virtual void Interact(AActor* Interactor);
 
+	// Called to let Blueprint scripts add logic to interactions
 	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable, meta=(DisplayName="Interact"))
 	void ReceiveInteract(AActor* Interactor);
-	///////virtual void ReceiveInteract_Implementation(AActor* Interactor);
 
-	UFUNCTION(BlueprintNativeEvent)
-	void TestEvent();
+	// Returns the position (in worldspace) of where the interactable widget should appear.
+	// This is projected from screen to worldspace 
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable)
+	FVector GetInteractableWidgetSocketLocation() const;
 };
