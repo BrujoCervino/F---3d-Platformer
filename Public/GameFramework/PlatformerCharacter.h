@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
+#include "Collector.h"
 #include "PlatformerCharacter.generated.h"
 
 // WARNING/TODO: THE CONFIG VARIABLES NEED TO BE SETTABLE FROM WITHIN THE UI.
@@ -31,7 +32,8 @@ class USpringArmComponent;
 * Is third person and can jump, dash, stomp and interact (which can be chained)
 */
 UCLASS()
-class F_API APlatformerCharacter : public ACharacter
+class F_API APlatformerCharacter 
+	: public ACharacter, public ICollector
 {
 	GENERATED_BODY()
 
@@ -255,6 +257,15 @@ private:
 	//
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Damage", meta = (AllowPrivateAccess = "true")) 
 	FTimerHandle DeathTransitionTimerHandle;
+
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+	//
+	//		Basics: Collectables
+	//
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+	// 
+	virtual void Collect(const TEnumAsByte<ECollectableTypes::Type> TypeCollected);
 
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	//
@@ -501,6 +512,10 @@ protected:
 	// Propell the character downwards, as though weighed down
 	virtual void Stomp();
 
+	// Notify Blueprint scripting that this character stomped
+	UFUNCTION(BlueprintImplementableEvent, meta = (BlueprintProtected))
+	void OnStomped();
+
 private:
 
 	// The gravity scale to apply to this character when stomping
@@ -514,4 +529,5 @@ private:
 	// The camera shake to play when this player lands from stomping
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Abilities|Stomp", meta = (AllowPrivateAccess = "true"))
 	TSubclassOf<UCameraShake> StompLandedCameraShake;
+
 };

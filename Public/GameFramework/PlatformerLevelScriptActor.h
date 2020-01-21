@@ -18,9 +18,9 @@ public:
 
 	// Should be called when the player has finished this level:
 	// TODOs:
-	// * (MAYBE) Show the player their completion rate
-	// * Dish out any rewards for completing this level
-	// * Teleport the player to the next level
+	// * (MAYBE) Show the player their completion rate & Time taken
+	// * (DONE) Dish out any rewards for completing this level
+	// * (DONE) Teleport the player to the next level
 	UFUNCTION(BlueprintCallable)
 	virtual void CompleteLevel();
 	UFUNCTION(BlueprintImplementableEvent, meta=(DisplayName="CompleteLevel"))

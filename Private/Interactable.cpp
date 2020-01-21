@@ -7,10 +7,4 @@
 
 void IInteractable::Interact_Proper(AActor* Interactor)
 {
-
-}
-
-void IInteractable::ReceiveInteract_Implementation(AActor * Instigator)
-{
-	
 }

@@ -15,6 +15,8 @@
 #include "Sound/SoundCue.h"
 #include "TimerManager.h" // Timers
 #include "Interactable.h" 
+#include "PlatformerTypes.h"
+#include "Components/StaticMeshComponent.h"
 
 // Sets default values
 APlatformerCharacter::APlatformerCharacter()
@@ -89,6 +91,9 @@ APlatformerCharacter::APlatformerCharacter()
 	// Set this character to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
 	PrimaryActorTick.bStartWithTickEnabled = true;
+
+	// Ensure the interaction trace ignores this actor
+	InteractionTraceActorsToIgnore.Add(this);
 
 	// Ensure the gravity scale is the one this player uses when not shrunk
 	if (GetCharacterMovement())
@@ -262,6 +267,8 @@ void APlatformerCharacter::FellOutOfWorld(const UDamageType& dmgType)
 
 void APlatformerCharacter::Landed(const FHitResult& Hit)
 {
+	ACharacter::Landed(Hit);
+	
 	// Landing should feel powerful, so shake the screen
 	if (APlatformerPlayerController* const PC = Cast<APlatformerPlayerController, AController>(Controller))
 	{
@@ -333,7 +340,7 @@ float APlatformerCharacter::TakeDamage(float DamageAmount, FDamageEvent const& D
 				FollowCamera->PostProcessSettings.SceneFringeIntensity = DamagedSceneFringeIntensity;
 
 				// Interpolate back to the scene's look before distortion
-				GetWorldTimerManager().SetTimer(SceneFringeResetTimerHandle, this, &APlatformerCharacter::ResetSceneFringe,SceneFringeResetDuration, false);
+				GetWorldTimerManager().SetTimer(SceneFringeResetTimerHandle, this, &APlatformerCharacter::ResetSceneFringe, SceneFringeResetDuration, false);
 			}
 			// For feedback:
 			// Play a sound
@@ -443,6 +450,64 @@ void APlatformerCharacter::ResetSceneFringe()
 	}
 }
 
+void APlatformerCharacter::Collect(const TEnumAsByte<ECollectableTypes::Type> TypeCollected)
+{
+	////////// Ensure Blueprints know this character collected something
+	////////ICollector::Execute_ReceiveCollect(TypeCollected);
+
+	USoundCue* CollectedSound = nullptr;
+	
+	switch (TypeCollected)
+	{
+		case(ECollectableTypes::None):
+		{
+			checkNoEntry();
+			break;
+		}
+		case(ECollectableTypes::Orb):
+		{
+			break;	
+		}
+		case(ECollectableTypes::Fly):
+		{
+			break;
+		}
+		case(ECollectableTypes::Cell):
+		{
+			break;
+		}
+		case(ECollectableTypes::SmallKey):
+		{
+			break;
+		}
+		case(ECollectableTypes::KeyToSecretLevel):
+		{
+			break;
+		}
+		case(ECollectableTypes::Plant):
+		{
+			break;
+		}
+		case(ECollectableTypes::Note):
+		{
+			break;
+		}
+		case(ECollectableTypes::SkillPoint):
+		{
+			GrantSkillPoint();
+			break;
+		}
+		default:
+		{
+			checkNoEntry();
+			break;
+		}
+	}
+
+	UGameplayStatics::PlaySoundAtLocation(this, CollectedSound, GetActorLocation());
+}
+
+
 bool APlatformerCharacter::UseKey()
 {
 	// If the player controller exists, try to use a key.
@@ -492,7 +557,7 @@ void APlatformerCharacter::AirDash()
 		{
 			// Disable standard air dashing until this character lands
 			bCanAirDash = false;
-			bHasUsedAirDashPrimary = true;
+			bHasUsedAirDashPrimary = true;			
 		}
 		else if (!bHasUsedAirDashSecondary && bCanAirDashSecondary)
 		{
@@ -652,9 +717,7 @@ void APlatformerCharacter::TraceForInteractables()
 			// * Avoids both extra getter calls
 			// * Avoids using the weak pointer of FHitResult::Actor
 			// * Is non-nullable
-			AActor* const& InteractableActor = Hit.GetActor();
-
-			if (nullptr != InteractableActor)
+			if (AActor* const& InteractableActor = Hit.GetActor())
 			{
 				// Avoid a useless assignment to nullptr, by assuming nothing interactable was found
 				USoundCue* SoundToPlay = InteractionFailedCue;
@@ -663,6 +726,11 @@ void APlatformerCharacter::TraceForInteractables()
 				if (!InteractableActor->IsPendingKill() && InteractableActor->Implements<UInteractable>())
 				{
 					// Interact with InteractableActor, telling it this player instigated the interaction
+					if (IInteractable* const InteractableActorCast = Cast<IInteractable, AActor>(InteractableActor))
+					{
+						InteractableActorCast->Interact_Proper(this);
+					}
+
 					IInteractable::Execute_ReceiveInteract(InteractableActor, this);
 					SoundToPlay = InteractionSucceededCue;
 				}
@@ -699,6 +767,7 @@ void APlatformerCharacter::Stomp()
 	if (GetCharacterMovement()->IsFalling())
 	{
 		GetCharacterMovement()->GravityScale = StompingGravityScale;
+		OnStomped();
 	}
 }
 
