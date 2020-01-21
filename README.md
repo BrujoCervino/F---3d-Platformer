@@ -36,7 +36,7 @@ I began this project in Blueprint, and am porting it to C++.
 
   ‡ R                     - Stomp
 
-  ‡ Q (in air)            - Air Dash. One extra air dash is granted if the player shrinks in midair.
+  ‡ Q/Shift (in air)      - Air Dash. One extra air dash is granted if the player shrinks in midair.
 
   ‡ Esc/Tab               - Pause
 
