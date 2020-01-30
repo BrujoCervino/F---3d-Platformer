@@ -24,8 +24,12 @@ AOverlappableDynamicCollectable::AOverlappableDynamicCollectable()
 
 void AOverlappableDynamicCollectable::OnCollected(AActor* Collector)
 {
-	// Disable the trigger's collision
-	Trigger->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-	// Now call up the hierarchy so this collectable can be destroyed
+	// TODO: OnCollected should return a bool, so I can avoid another function call
+	// Call up the hierarchy so this collectable can be destroyed
 	ADynamicCollectable::OnCollected(Collector);
+	if (HasBeenCollected())
+	{
+		// Disable the trigger's collision
+		Trigger->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	}
 }

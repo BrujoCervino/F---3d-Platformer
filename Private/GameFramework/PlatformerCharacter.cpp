@@ -3,11 +3,11 @@
 #include "PlatformerCharacter.h"
 #include "PlatformerPlayerController.h"
 #include "Kismet/GameplayStatics.h"
-#include "Kismet/KismetSystemLibrary.h" // CapsuleTrace
+#include "Kismet/KismetSystemLibrary.h" // SphereTraceForActors
 #include "Camera/CameraComponent.h"
 #include "GameFramework/SpringArmComponent.h"
-#include "GameFramework/ForceFeedbackEffect.h"
 #include "Components/SkeletalMeshComponent.h"
+#include "Components/CapsuleComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Materials/MaterialParameterCollection.h"
 #include "Materials/MaterialParameterCollectionInstance.h"
@@ -17,6 +17,7 @@
 #include "Interactable.h" 
 #include "PlatformerTypes.h"
 #include "Components/StaticMeshComponent.h"
+#include "PhysicsEngine/RadialForceComponent.h"
 
 // Sets default values
 APlatformerCharacter::APlatformerCharacter()
@@ -51,6 +52,9 @@ APlatformerCharacter::APlatformerCharacter()
 	DeathTransitionTimerHandle(),
 	// * Collectables
 	KeyCollectedColour(FColor::Orange),
+	// * Lantern
+	LanternMeshSocketName(),
+	LanternHandleBoneName(),
 	// * Air Dash
 	DashSpeed(200.0f),
 	bCanAirDash(true),
@@ -71,29 +75,28 @@ APlatformerCharacter::APlatformerCharacter()
 	ShrinkCooldown(0.3f),
 	ShrinkCooldownHandle(),
 	// * Interact
+	CurrentInteractable(nullptr),
 	bCanInteract(true),
-	InteractionTraceLength(600.0f),
-	InteractionTraceCapsuleRadius(42.0f),
-	InteractionTraceCapsuleHalfHeight(96.0f),
-	InteractionTraceDesiredTypes(),
-	bInteractionTraceComplex(false),
-	InteractionTraceActorsToIgnore(),
-	bDrawInteractionTrace(false),
 	InteractionSucceededCue(nullptr),
 	InteractionFailedCue(nullptr),
 	InteractionCooldown(0.2f),
 	InteractionCooldownHandle(),
+	bCharacterRelativeInteractionTrace(true),
 	// * Stomp
+	StompRadius(200.0f),
+	StompDamage(2.0f),
+	RadialForceTimeActive(0.5f),
+	StompableClass(AActor::StaticClass()),
+	RadialForceTimeActiveTimerHandle(),
+	StompHitTypes(),
 	StompingGravityScale(6.0f),
 	StandardGravityScale(1.5f),
-	StompLandedCameraShake(UCameraShake::StaticClass())
+	StompLandedCameraShake(UCameraShake::StaticClass()),
+	CurrentlyHeldItem(EItemTypes::None)
 {
 	// Set this character to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
 	PrimaryActorTick.bStartWithTickEnabled = true;
-
-	// Ensure the interaction trace ignores this actor
-	InteractionTraceActorsToIgnore.Add(this);
 
 	// Ensure the gravity scale is the one this player uses when not shrunk
 	if (GetCharacterMovement())
@@ -102,7 +105,8 @@ APlatformerCharacter::APlatformerCharacter()
 	}
 
 	// Create a camera boom (pulls in towards the player if there is a collision)
-	CameraBoom = CreateDefaultSubobject<USpringArmComponent>(TEXT("CameraBoom"));
+	static FName const CameraBoomName = TEXT("CameraBoom");
+	CameraBoom = CreateDefaultSubobject<USpringArmComponent>(CameraBoomName);
 	if (CameraBoom)
 	{
 		CameraBoom->SetupAttachment(RootComponent);
@@ -111,12 +115,34 @@ APlatformerCharacter::APlatformerCharacter()
 	}
 
 	// Create a follow camera
-	FollowCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("FollowCamera"));
+	static FName const FollowCameraName = TEXT("FollowCamera");
+	FollowCamera = CreateDefaultSubobject<UCameraComponent>(FollowCameraName);
 	if (FollowCamera)
 	{
 		FollowCamera->SetupAttachment(CameraBoom, USpringArmComponent::SocketName); // Attach the camera to the end of the boom and let the boom adjust to match the controller orientation
 		FollowCamera->bUsePawnControlRotation = false; // Camera does not rotate relative to arm 
 	}
+
+	// Initialise the interaction capsule
+	static FName const InteractionCapsuleName = TEXT("Interaction Capsule");
+	InteractionCapsule = CreateDefaultSubobject<UCapsuleComponent>(InteractionCapsuleName);
+	check(InteractionCapsule);
+	InteractionCapsule->SetupAttachment(GetMesh());
+	InteractionCapsule->OnComponentBeginOverlap.AddDynamic(this, &APlatformerCharacter::OnIteractionCapsuleBeginOverlap);
+	InteractionCapsule->OnComponentEndOverlap.AddDynamic(this, &APlatformerCharacter::OnInteractionCapsuleEndOverlap);
+
+	// Initialise the lantern mesh
+	static FName const LanternName = TEXT("LanternMesh");
+	LanternMesh = CreateDefaultSubobject<USkeletalMeshComponent>(LanternName);
+	check(LanternMesh);
+	LanternMesh->SetupAttachment(GetMesh(), LanternMeshSocketName); 
+	//LanternMesh->Attachtocom
+
+	// Initialise the radial force comp
+	static FName const RadialForceCompName = TEXT("RadialForceComp");
+	RadialForceComp = CreateDefaultSubobject<URadialForceComponent>(RadialForceCompName);
+	check(RadialForceComp);
+	RadialForceComp->SetupAttachment(RootComponent);
 
 	// Config variables
 	if (GConfig)
@@ -163,6 +189,8 @@ void APlatformerCharacter::BeginPlay()
 	{
 		CurrentWorld->GetParameterCollectionInstance(DeathTransitionMaterialParamCollectionType);
 	}
+
+	LanternMesh->SetAllBodiesBelowSimulatePhysics(LanternHandleBoneName, true, false);
 }
 
 // Called every frame
@@ -205,7 +233,7 @@ void APlatformerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInpu
 	// * Abilities
 	PlayerInputComponent->BindAction("Air Dash", IE_Pressed, this, &APlatformerCharacter::AirDash);
 	PlayerInputComponent->BindAction("Shrink", IE_Pressed, this, &APlatformerCharacter::ToggleShrink);
-	PlayerInputComponent->BindAction("Interact", IE_Pressed, this, &APlatformerCharacter::TraceForInteractables);
+	PlayerInputComponent->BindAction("Interact", IE_Pressed, this, &APlatformerCharacter::TryInteract);
 	PlayerInputComponent->BindAction("Stomp", IE_Pressed, this, &APlatformerCharacter::Stomp);
 
 }
@@ -269,12 +297,18 @@ void APlatformerCharacter::Landed(const FHitResult& Hit)
 {
 	ACharacter::Landed(Hit);
 	
+	float ShakeScale = 0.3f;
+
+	const bool bLandedFromStomping = (GetCharacterMovement()->GravityScale == StompingGravityScale);
+	if (bLandedFromStomping)
+	{
+		LandedFromStomping(Hit);
+		ShakeScale = 1.0f;
+	}
+
 	// Landing should feel powerful, so shake the screen
 	if (APlatformerPlayerController* const PC = Cast<APlatformerPlayerController, AController>(Controller))
 	{
-		const bool bLandedFromStomping = (GetCharacterMovement()->GravityScale == StompingGravityScale);
-		const float ShakeScale = bLandedFromStomping ? 1.0f : 0.3f;
-
 		PC->ClientPlayCameraShake(StompLandedCameraShake, ShakeScale);
 	}
 
@@ -452,10 +486,11 @@ void APlatformerCharacter::ResetSceneFringe()
 
 void APlatformerCharacter::Collect(const TEnumAsByte<ECollectableTypes::Type> TypeCollected)
 {
-	////////// Ensure Blueprints know this character collected something
-	////////ICollector::Execute_ReceiveCollect(TypeCollected);
+	// Ensure Blueprints know this character collected something
+	ICollector::Execute_ReceiveCollect(this, TypeCollected);
 
 	USoundCue* CollectedSound = nullptr;
+	FLinearColor CollectedColour = FColor::Transparent;
 	
 	switch (TypeCollected)
 	{
@@ -479,11 +514,13 @@ void APlatformerCharacter::Collect(const TEnumAsByte<ECollectableTypes::Type> Ty
 		case(ECollectableTypes::SmallKey):
 		{
 			GiveKey();
+			CollectedColour = KeyCollectedColour;
 			break;
 		}
 		case(ECollectableTypes::KeyToSecretLevel):
 		{
 			GiveSecretKey();
+			CollectedColour = KeyCollectedColour;
 			break;
 		}
 		case(ECollectableTypes::Plant):
@@ -507,6 +544,7 @@ void APlatformerCharacter::Collect(const TEnumAsByte<ECollectableTypes::Type> Ty
 	}
 
 	UGameplayStatics::PlaySoundAtLocation(this, CollectedSound, GetActorLocation());
+	ApplyRadialColour(CollectedColour);
 }
 
 bool APlatformerCharacter::UseKey()
@@ -720,67 +758,53 @@ void APlatformerCharacter::EnsureStandardSize(const bool bShouldPlaySound /*= tr
 	}
 }
 
-void APlatformerCharacter::TraceForInteractables()
+void APlatformerCharacter::OnIteractionCapsuleBeginOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
 {
-	if (bCanInteract && (nullptr != FollowCamera))
+	if (OtherActor && this != OtherActor && OtherActor->Implements<UInteractable>())
 	{
-		// The interaction system needs a revamp: I'll probably use an extra capsule component to trace for interactables, 
-		// to avoid the awkwardness of pointing the camera to 
-		const FVector& CamLoc = FollowCamera->GetComponentLocation();
-		const FVector TraceEndPosition = (FollowCamera->GetForwardVector() * InteractionTraceLength) + CamLoc;
+		SetCanInteract(true);
+		CurrentInteractable = OtherActor;
+	}
+}
 
-		FHitResult Hit = FHitResult();
-		const bool IgnoreSelfWithinInteractionTrace = true;
+void APlatformerCharacter::OnInteractionCapsuleEndOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex)
+{
+	SetCanInteract(false);
+	//CurrentInteractable = nullptr;
+}
 
-		const EDrawDebugTrace::Type InteractionTraceDrawDebugType
-			= bDrawInteractionTrace ? EDrawDebugTrace::Persistent : EDrawDebugTrace::None;
+void APlatformerCharacter::TryInteract()
+{
+	if(bCanInteract && CurrentInteractable)
+	{
+		// Avoid a useless assignment to nullptr, by assuming nothing interactable was found
+		USoundCue* SoundToPlay = InteractionFailedCue;
 
-		UKismetSystemLibrary::CapsuleTraceSingleForObjects(this, CamLoc, TraceEndPosition, InteractionTraceCapsuleRadius, InteractionTraceCapsuleHalfHeight, InteractionTraceDesiredTypes,
-			bInteractionTraceComplex, InteractionTraceActorsToIgnore, InteractionTraceDrawDebugType, Hit, IgnoreSelfWithinInteractionTrace);
-		// If the trace hit something,
-		if (Hit.bBlockingHit)
+		CurrentInteractable->ClearPendingKill();
+		// Interact with InteractableActor, telling it this player instigated the interaction
+		if (IInteractable* const InteractableActorCast = Cast<IInteractable, AActor>(CurrentInteractable))
 		{
-			// Make a quicker to type (into Intellisense) alias. 
-			// This also:
-			// * Avoids both extra getter calls
-			// * Avoids using the weak pointer of FHitResult::Actor
-			// * Is non-nullable
-			if (AActor* const& InteractableActor = Hit.GetActor())
-			{
-				// Avoid a useless assignment to nullptr, by assuming nothing interactable was found
-				USoundCue* SoundToPlay = InteractionFailedCue;
-
-				// If we hit something interactable,
-				if (!InteractableActor->IsPendingKill() && InteractableActor->Implements<UInteractable>())
-				{
-					// Interact with InteractableActor, telling it this player instigated the interaction
-					if (IInteractable* const InteractableActorCast = Cast<IInteractable, AActor>(InteractableActor))
-					{
-						InteractableActorCast->Interact(this);
-					}
-
-					IInteractable::Execute_ReceiveInteract(InteractableActor, this);
-					SoundToPlay = InteractionSucceededCue;
-				}
-
-				// Play a sound to feed back the interaction's result to the player.
-				UGameplayStatics::PlaySoundAtLocation(this, SoundToPlay, TraceEndPosition);
-
-				// Ban interacting
-				SetCanInteract(false);
-
-				// Allow the player to interact after the cooldown has finished.
-				static const FName SetCanInteractFunctionName = GET_FUNCTION_NAME_CHECKED(APlatformerCharacter, SetCanInteract);
-				
-				FTimerDelegate InteractionCooldownDelegate;
-				InteractionCooldownDelegate.BindUFunction(this, SetCanInteractFunctionName, true);
-
-				GetWorldTimerManager().SetTimer(InteractionCooldownHandle, InteractionCooldownDelegate, InteractionCooldown, false);
-
-				// React to this interaction, via Blueprint scripting
-				OnInteracted();
-			}
+			InteractableActorCast->Interact(this);
 		}
+
+		SoundToPlay = InteractionSucceededCue;
+
+		// Play a sound to feed back the interaction's result to the player.
+		UGameplayStatics::PlaySoundAtLocation(this, SoundToPlay, GetActorLocation());
+
+		// Ban interacting
+		SetCanInteract(false);
+
+		// Allow the player to interact after the cooldown has finished.
+		static const FName SetCanInteractFunctionName = GET_FUNCTION_NAME_CHECKED(APlatformerCharacter, SetCanInteract);
+		
+		FTimerDelegate InteractionCooldownDelegate;
+		InteractionCooldownDelegate.BindUFunction(this, SetCanInteractFunctionName, true);
+
+		GetWorldTimerManager().SetTimer(InteractionCooldownHandle, InteractionCooldownDelegate, InteractionCooldown, false);
+
+		// React to this interaction, via Blueprint scripting
+		OnInteracted();
 	}
 }
 
@@ -797,5 +821,45 @@ void APlatformerCharacter::Stomp()
 		GetCharacterMovement()->GravityScale = StompingGravityScale;
 		OnStomped();
 	}
+}
+
+void APlatformerCharacter::LandedFromStomping(const FHitResult& Hit)
+{
+	// TODO: spawn a decal of cracked ground
+	
+	// Get where the hit happened.
+	const FVector& HitLoc = GetActorLocation();
+	// Ignore this actor only
+	TArray<AActor*> ActorsToIgnore = { this }; 
+	TArray<AActor*> FoundActors; // Leave empty for now: filled by reference
+	// Check for actors within StompRadius
+	// TODO: If using this implementation of SphereOverlapActors proves too costly, use UWorld::MultiOverlapForActors. 
+	// However, for what we want here, only a line or two of code would be saved.
+	UKismetSystemLibrary::SphereOverlapActors(this, HitLoc, StompRadius, StompHitTypes, *StompableClass, ActorsToIgnore, FoundActors);
+	
+	// Add force to each found primitive component within radius.
+	
+	// TODO: Remove the radial force comp, if too costly, and write its functionality here.
+	RadialForceComp->Activate();
+	RadialForceComp->FireImpulse();
+	
+	// Stop applying force, after the specified time.
+	static FName const RadialForceDeactivateFunctionName = GET_FUNCTION_NAME_CHECKED(URadialForceComponent, Deactivate);
+	FTimerDelegate RadialForceTimeOutDelegate;
+	RadialForceTimeOutDelegate.BindUFunction(RadialForceComp, RadialForceDeactivateFunctionName, false);
+	GetWorldTimerManager().SetTimer(RadialForceTimeActiveTimerHandle,RadialForceTimeOutDelegate, RadialForceTimeActive, false); // Deactivate the radial force comp, after a timer.
+	
+	// Apply damage to each found component
+	const FDamageEvent DmgEv = FDamageEvent();
+	for (AActor* const It : FoundActors)
+	{
+		if (It)
+		{
+			It->TakeDamage(StompDamage, DmgEv, Controller, this);
+		}
+	}
+
+	// Notify Blueprints that we stomped
+	OnLandedFromStomping(Hit);
 }
 

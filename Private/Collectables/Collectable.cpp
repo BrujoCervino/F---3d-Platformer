@@ -23,8 +23,8 @@ ACollectable::ACollectable()
 	// Initialise and check the mesh is valid
 	Mesh = CreateDefaultSubobject<UStaticMeshComponent>(MeshName);
 	check(Mesh)
-		// Initialise and check the mesh is valid
-		RootComponent = Mesh;
+	// Initialise and check the mesh is valid
+	RootComponent = Mesh;
 }
 
 // Called when the game starts or when spawned
@@ -36,26 +36,23 @@ void ACollectable::BeginPlay()
 
 void ACollectable::OnCollected(AActor* Collector)
 {
-	if (!HasBeenCollected())
+	if (ICollector* const CollectorCast = Cast<ICollector, AActor>(Collector))
 	{
-		if (ICollector* const CollectorCast = Cast<ICollector, AActor>(Collector))
-		{
-			// Disallow this collectable from being collected multiple times.
-			bCollected = true;
-			// Notify the collector that it collected something.
-			CollectorCast->Collect(CollectableType);
+		// Disallow this collectable from being collected multiple times.
+		bCollected = true;
+		// Notify the collector that it collected something.
+		CollectorCast->Collect(CollectableType);
 
-			// Make this collectable invisible and untouchable
-			SetActorHiddenInGame(true);
+		// Make this collectable invisible and untouchable
+		SetActorHiddenInGame(true);
 
-			// Play a sound, for player feedback
-			UGameplayStatics::PlaySoundAtLocation(this, CollectedSound, GetActorLocation());
+		// Play a sound, for player feedback
+		UGameplayStatics::PlaySoundAtLocation(this, CollectedSound, GetActorLocation());
 
-			// Notify Blueprint scripting that this collectable was picked up.
-			ICollector::Execute_ReceiveCollect(Collector, CollectableType);
+		// Tell Blueprints that this collectable was just collected
+		ReceiveOnCollected(Collector);
 
-			Destroy();
-		}
+		// TODO: Destroy this after some time
 	}
 }
 

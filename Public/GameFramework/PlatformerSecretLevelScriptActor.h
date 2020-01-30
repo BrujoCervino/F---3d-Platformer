@@ -6,10 +6,6 @@
 #include "GameFramework/PlatformerLevelScriptActor.h"
 #include "PlatformerSecretLevelScriptActor.generated.h"
 
-// TODO: Reward the player with a skill point for finishing the secret level
-// TODO: Open the level which contained the portal to the secret level
-// TODO: Ensure there are no GetPlayerController instances: I want things player-specific
-
 /**
  * 
  */

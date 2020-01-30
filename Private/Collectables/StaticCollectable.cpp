@@ -13,13 +13,21 @@ AStaticCollectable::AStaticCollectable()
 
 void AStaticCollectable::Interact(AActor* Interactor)
 {
-	OnCollected(Interactor);
+	if (!HasBeenCollected())
+	{
+		OnCollected(Interactor);
+	}
+
+	IInteractable::Execute_ReceiveInteract(this, Interactor);
 }
 
 void AStaticCollectable::OnCollected(AActor* Collector)
 {
-	// Disable the mesh's collision
-	GetMesh()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	// Now call up the hierarchy so this collectable can be destroyed
 	ACollectable::OnCollected(Collector);
+	if (HasBeenCollected())
+	{
+		// Disable the mesh's collision
+		GetMesh()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	}
 }

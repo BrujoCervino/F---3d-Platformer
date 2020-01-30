@@ -7,7 +7,7 @@
 #include "PlatformerUILibrary.generated.h"
 
 /**
- * 
+ * Exists to avoid duplicate code for UI functionalitites
  */
 UCLASS()
 class F_API UPlatformerUILibrary : public UBlueprintFunctionLibrary

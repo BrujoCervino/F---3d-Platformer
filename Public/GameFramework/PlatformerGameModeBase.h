@@ -16,6 +16,15 @@ class F_API APlatformerGameModeBase : public AGameModeBase
 	
 public:
 
+	APlatformerGameModeBase();
+	virtual ~APlatformerGameModeBase();
+
+	// Called when the game starts or when spawned
+	virtual void BeginPlay() override;
+
+	// Called every frame
+	virtual void Tick(float DeltaTime) override;
+
 	// Should be called when the player has reached the end of the game: 
 	// TODOs: 
 	// * Roll the credits
@@ -25,4 +34,5 @@ public:
 	virtual void CompleteGame();
 	UFUNCTION(BlueprintImplementableEvent, meta = (DisplayName = "CompleteGame"))
 	void OnGameCompleted();
+
 };

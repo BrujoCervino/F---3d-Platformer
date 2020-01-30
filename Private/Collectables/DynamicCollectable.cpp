@@ -36,5 +36,8 @@ void ADynamicCollectable::Tick(float DeltaTime)
 
 void ADynamicCollectable::NotifyActorBeginOverlap(AActor* OtherActor)
 {
-	OnCollected(OtherActor);
+	if (!HasBeenCollected())
+	{
+		OnCollected(OtherActor);
+	}
 }

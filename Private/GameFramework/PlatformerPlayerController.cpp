@@ -79,15 +79,18 @@ void APlatformerPlayerController::LoadFromSaveData()
 	if (UGameplayStatics::DoesSaveGameExist(SaveSlotName, SaveSlotIndex))
 	{
 		UPlatformerSaveGame const * const SaveGame = 
-			Cast<UPlatformerSaveGame, USaveGame>(UGameplayStatics::LoadGameFromSlot(SaveSlotName, SaveSlotIndex));
+			Cast<UPlatformerSaveGame, USaveGame>(UGameplayStatics::LoadGameFromSlot(SaveSlotName, SaveSlotIndex)); 
 
 		if (SaveGame)
 		{
-			bShrinkUnlocked = SaveGame->bShrinkUnlocked;
+			bShrinkUnlocked	 = SaveGame->bShrinkUnlocked;
 			SkillPointsEarnt = SaveGame->SkillPointsEarnt;
 			SkillPointsSpent = SaveGame->SkillPointsSpent;
-			Keys = SaveGame->Keys;
-			SecretKeys = SaveGame->SecretKeys;
+			Keys			 = SaveGame->Keys;
+			SecretKeys		 = SaveGame->SecretKeys;
+			Orbs			 = SaveGame->Orbs;
+			Flies			 = SaveGame->Flies;
+			Cells			 = SaveGame->Flies;
 		}
 	}
 

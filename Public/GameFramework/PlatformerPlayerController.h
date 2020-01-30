@@ -6,8 +6,46 @@
 #include "GameFramework/PlayerController.h"
 #include "PlatformerPlayerController.generated.h"
 
+// TODO: Finish this struct type for each collectable type within the player controller 
+// (this would solve lots of duplicate code). Something like this:
+//USTRUCT()
+//template<typename TNumericType>
+//struct FCollectableData
+//{
+//	GENERATED_USTRUCT_BODY()
+//	
+//	FCollectableData<TNumericType>() 
+//	{
+//	}
+//	
+//	// Spend the given number of this collectable
+//	bool Spend(const TNumericType Cost) { checkNoEntry(); }
+//
+//	// Returns the total number of this collectable type which the player has earnt across all levels
+//	TNumericType GetEarntTotal() const {  return TNumericType(); }
+//
+//	// Returns the total number of this collectable type which the player has earnt in the specified level
+//	TNumericType GetEarntInLevel(const int LevelIndex) const { TNumericType(); }
+//
+//	// Returns the number of this collectable type the player has spent across the whole game
+//	TNumericType GetSpent() const { TNumericType(); }
+//
+//	// Returns GetEarntTotal() - GetSpent()
+//	TNumericType GetEarntTotalPostDeductions() const { TNumericType(); }
+//
+//private:
+//
+//	TNumericType NumSpent;
+//
+//	TArray<TNumericType> NumEarntInEachLevel;
+//	
+//	// Ban the typeless constructor.
+//	FCollectableData() {} 
+//};
+
+
 /**
- * The default player controller for this game
+ * The default player controller for this game.
  * 
  *
  */
@@ -23,7 +61,7 @@ public:
 	// Getter for bShrinkUnlocked
 	inline bool IsShrinkUnlocked() const { return bShrinkUnlocked; }
 
-	// Get the 
+	//
 	inline int32 GetSkillPointsEarnt() const { return SkillPointsEarnt; }
 	inline int32 GetSkillPointsSpent() const { return SkillPointsSpent; }					  
 	inline int32 GetSkillPointsEarntPostDeductions() const { return SkillPointsEarnt - SkillPointsSpent; }
@@ -72,6 +110,7 @@ protected:
 	// Skill points, gained by completing secret missions, are used to buy/upgrade new moves (shrink et cetera)
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+
 	// The number of skill points this player has earnt
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, meta = (BlueprintProtected = "true"))
 	int32 SkillPointsEarnt;
@@ -89,7 +128,38 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, meta = (BlueprintProtected = "true"))
 	int32 Keys;
 
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+	// Secret keys are used to unlock doors to secret levels
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
 	// The number of secret keys held by the player
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, meta = (BlueprintProtected = "true"))
 	int32 SecretKeys;
+
+
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+	// Orbs, the most common collectables, are spent on TODO
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, meta = (BlueprintProtected = "true"))
+	int32 Orbs;
+
+
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+	// 7 Flies can be found in each level. Find them all grants the player a cell.
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, meta = (BlueprintProtected = "true"))
+	int32 Flies;
+
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+	// Cells are collected by completing tasks in each level. Collecting enough grants the player access to new levels.
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, meta = (BlueprintProtected = "true"))
+	int32 Cells;
 };

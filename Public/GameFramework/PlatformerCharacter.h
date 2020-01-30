@@ -7,16 +7,23 @@
 #include "Collector.h"
 #include "PlatformerCharacter.generated.h"
 
+// Types of item
+UENUM(BlueprintType)
+namespace EItemTypes
+{
+	enum Type
+	{
+		None = 0,
+		Lantern = 1
+	};
+}
+
 // WARNING/TODO: THE CONFIG VARIABLES NEED TO BE SETTABLE FROM WITHIN THE UI.
 // TODO: look into events within Misc/CoreDelegates.h : lots of goodies in there.
 // TODO: Secondary air dash should only be executable within a few seconds of shrinking down. If unused, set used to true. 
 // This makes the ability properly advanced and chainable
 // TODO: ResetSceneFringeIntensity should lerp in a V shape: lerp to DamagedIntensity for about 20% of the time, StandardIntensity for 80% of the time
-/* TODO: revamp interaction trace system: 
-* Should be toggleable between camera- and character relative 
-* Probably use a capsule component attachable to camera or mesh (avoids mess within Tick)
-* Plan: onOverlapBegin: display a widget indicating player can interact and store a pointer to the currently interactable actor;
-*		onOverlapEnd, hide the widget and nullify the pointer
+/* TODO: camera/character relative interaction trace 
 */
 
 class UCameraComponent;
@@ -24,6 +31,7 @@ class UCameraShake;
 class UForceFeedbackEffect;
 class UMaterialParameterCollection;
 class UMaterialParameterCollectionInstance;
+class URadialForceComponent;
 class USoundCue;
 class USpringArmComponent;
 
@@ -264,8 +272,9 @@ private:
 	//
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-	// 
-	virtual void Collect(const TEnumAsByte<ECollectableTypes::Type> TypeCollected);
+	// Begin ICollector interface
+	virtual void Collect(const TEnumAsByte<ECollectableTypes::Type> TypeCollected) override;
+	// End ICollector interface
 
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	//
@@ -303,11 +312,41 @@ private:
 	//		Basics: Collectables: Skill Points
 	//
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+	// Skill points, rewarded by completing secret levels, are used to unlock secret abilities.
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 public:
 
 	// Grants a skill point to this player (masks APlayerController::GrantSkillPoint).
 	bool GrantSkillPoint();
+
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+	//
+	//		Lantern
+	//
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+	// The lantern will be used for extra interactions with the world, by the player.
+	// E.g. lighting torches to solve a puzzle, or setting webs aflame to pass by them. 
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+public:
+
+	// Returns lantern mesh
+	inline USkeletalMeshComponent* GetLanternMesh() const { return LanternMesh; }
+
+private:
+
+	// The socket on the player mesh, to which the lantern mesh attaches.
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Lantern", meta = (AllowPrivateAccess = "true"))
+	FName LanternMeshSocketName;
+
+	// The bone of the lantern's handle, so all bones below it can simulate physics.
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Lantern", meta = (AllowPrivateAccess = "true"))
+	FName LanternHandleBoneName;
+
+	// The mesh for the lantern. 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Meshes", meta = (AllowPrivateAccess = "true"))
+	USkeletalMeshComponent* LanternMesh;
 
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	//
@@ -327,10 +366,13 @@ public:
 	//		Abilities: Air Dash
 	//
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+	// Air dash, only available when falling (inc. during stomping or jumping) pushes the character
+	// in the direction of the camera or the character (according to bAirDashIsCameraRelative).
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 protected:
 
-	// Propell the character forwards (character- or camera-relative)
+	// Propel the character forwards (character- or camera-relative)
 	virtual void AirDash();
 
 	// Accessors for bCanAirDash
@@ -380,6 +422,7 @@ public:
 
 	// Whether the player is currently shrunk. 
 	// (Maybe it needs its own flag aside from just checking the scale?)
+	UFUNCTION(BlueprintCallable, BlueprintPure)
 	bool IsShrunk() const;
 
 	// Ensure this player is not shrunk. Use this to bank shrinking in certain areas/conditions.
@@ -448,8 +491,22 @@ private:
 
 protected:
 
+	// Returns interaction capsule
+	inline UCapsuleComponent* GetInteractionCapsule() const { return InteractionCapsule; }
+
+	// Returns current interactable
+	inline AActor* GetCurrentInteractable() const { return CurrentInteractable; }
+
+	// Called when the interaction capsule finds an interactable (the character can "see" it).
+	UFUNCTION()
+	void OnIteractionCapsuleBeginOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult);
+
+	// Called when an interactable leaves the interaction capsule (the character no longer "sees it").
+	UFUNCTION()
+	void OnInteractionCapsuleEndOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex);
+
 	// Check if an interactable (implementor of the interactable interface) is nearby, interacting with it if so.
-	virtual void TraceForInteractables();
+	virtual void TryInteract();
 	UFUNCTION(BlueprintImplementableEvent, Category = "Abilities|Interact", meta = (BlueprintProtected))
 	void OnInteracted();
 
@@ -460,37 +517,17 @@ protected:
 	
 private:
 
+	// The NEW capsule for tracing for interactables
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Abilities|Interact", meta = (AllowPrivateAccess = "true"))
+	UCapsuleComponent* InteractionCapsule;
+
+	// The actor with which this player can currently interact, using the Interaction capsule
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Abilities|Interact", meta = (AllowPrivateAccess = "true"))
+	AActor* CurrentInteractable;
+
 	// Whether this character is allowed to interact at the current time
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Abilities|Interact", meta = (AllowPrivateAccess = "true"))
 	uint32 bCanInteract : 1;
-
-	// Length of the raycast for interaction
-	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Abilities|Interact", meta = (AllowPrivateAccess = "true"))
-	float InteractionTraceLength;
-
-	// 
-	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Abilities|Interact", meta = (AllowPrivateAccess = "true"))
-	float InteractionTraceCapsuleRadius; 
-	
-	//
-	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Abilities|Interact", meta = (AllowPrivateAccess = "true"))
-	float InteractionTraceCapsuleHalfHeight;
-
-	//
-	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Abilities|Interact", meta = (AllowPrivateAccess = "true"))
-	TArray<TEnumAsByte<EObjectTypeQuery>> InteractionTraceDesiredTypes;
-
-	// Whether to trace for simple or complex geometry when tracing for interactables
-	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Abilities|Interact", meta = (AllowPrivateAccess = "true"))
-	uint32 bInteractionTraceComplex : 1;
-
-	// Actors (excluding this actor) to exclude when tracing for interactables
-	UPROPERTY(VisibleInstanceOnly, BlueprintReadWrite, Category = "Abilities|Interact", meta = (AllowPrivateAccess = "true")) 
-	TArray<AActor*> InteractionTraceActorsToIgnore;
-
-	// Whether to draw the capsule trace used for interacting
-	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Abilities|Interact", meta = (AllowPrivateAccess = "true"))
-	uint32 bDrawInteractionTrace : 1;
 
 	// The sound to play when this player successfully interacts with something
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Abilities|Interact", meta = (AllowPrivateAccess = "true"))
@@ -510,6 +547,12 @@ private:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Abilities|Interact", meta = (AllowPrivateAccess = "true"))
 	FTimerHandle InteractionCooldownHandle;
 
+	// TODO: Set configs up for this.
+	// Whether to trace for interactables, relative to the character (true) or the camera (false). 
+	// Accessibility/Player preference
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Abilities|Interact", meta = (AllowPrivateAccess = "true"))
+	uint32 bCharacterRelativeInteractionTrace : 1;
+
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	//
 	//		Abilities: Stomp
@@ -520,23 +563,60 @@ protected:
 
 	// Propell the character downwards, as though weighed down
 	virtual void Stomp();
-
 	// Notify Blueprint scripting that this character stomped
 	UFUNCTION(BlueprintImplementableEvent, meta = (BlueprintProtected))
 	void OnStomped();
 
+	// Called when this character lands on the ground, with stomp active
+	virtual void LandedFromStomping(const FHitResult& Hit);
+	// Notify Blueprint scripting that this character landed from stomping
+	UFUNCTION(BlueprintImplementableEvent, meta=(DisplayName="LandedFromStomping"))
+	void OnLandedFromStomping(const FHitResult& Hit);
+
+	// Returns RadialForceComp
+	inline URadialForceComponent* GetRadialForceComp() const { return RadialForceComp; }
+
 private:
 
+	// The component which handles the radial force applied when landing from a stomp
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
+	URadialForceComponent* RadialForceComp;
+
+	// The radius in which tomp will check for actors.
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Abilities|Stomp|Landing", meta = (AllowPrivateAccess = "true"))
+	float StompRadius;
+
+	// The damage caused by stomping.
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Abilities|Stomp|Landing", meta = (AllowPrivateAccess = "true"))
+	float StompDamage;
+
+	// The duration of apply force to stomped actors.
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Abilities|Stomp|Landing", meta = (AllowPrivateAccess = "true"))
+	float RadialForceTimeActive;
+
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Abilities|Stomp|Landing", meta = (AllowPrivateAccess = "true"))
+	TSubclassOf<AActor> StompableClass;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Abilities|Stomp|Landing", meta = (AllowPrivateAccess = "true"))
+	FTimerHandle RadialForceTimeActiveTimerHandle;
+
+	// The types of collision profile which stomping will detect
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Abilities|Stomp|Landing", meta = (AllowPrivateAccess = "true"))
+	TArray<TEnumAsByte<EObjectTypeQuery>> StompHitTypes;
+
 	// The gravity scale to apply to this character when stomping
-	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Abilities|Stomp", meta = (AllowPrivateAccess = "true"))
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Abilities|Stomp|Falling", meta = (AllowPrivateAccess = "true"))
 	float StompingGravityScale;
 
 	// The gravity scale to apply to this character when not stomping
-	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Abilities|Stomp", meta = (AllowPrivateAccess = "true"))
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Abilities|Stomp|Falling", meta = (AllowPrivateAccess = "true"))
 	float StandardGravityScale;
 
 	// The camera shake to play when this player lands from stomping
-	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Abilities|Stomp", meta = (AllowPrivateAccess = "true"))
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Abilities|Stomp|Landing", meta = (AllowPrivateAccess = "true"))
 	TSubclassOf<UCameraShake> StompLandedCameraShake;
 
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Abilities|Stomp|Landing", meta = (AllowPrivateAccess = "true"))
+	TEnumAsByte<EItemTypes::Type> CurrentlyHeldItem;
 };

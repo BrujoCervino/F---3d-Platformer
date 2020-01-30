@@ -14,7 +14,7 @@ class UInteractable : public UInterface
 };
 
 // Allows implementors to communicate with one another, knowing who communicated.
-// Example: the character interacts with a door, which tests whether they have a key, then reacts accordingly
+// Example: the character interacts with a door, which tests whether they have a key, then reacts accordingly.
 class F_API IInteractable
 {
 	GENERATED_BODY()
@@ -31,7 +31,6 @@ public:
 	void ReceiveInteract(AActor* Interactor);
 
 	// Returns the position (in worldspace) of where the interactable widget should appear.
-	// This is projected from screen to worldspace 
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable)
 	FVector GetInteractableWidgetSocketLocation() const;
 };

@@ -11,9 +11,17 @@ public class F : ModuleRules
 		PublicDependencyModuleNames.AddRange(new string[] 
         {
             // Default :
-            "Core", "CoreUObject", "Engine", "InputCore"
+            "Core", "CoreUObject", "Engine", "InputCore",
             // Extras :
-        });
+			"ApexDestruction", "SteelSeriesGameSense"
+		});
+
+		// Add Discord SDK
+		PublicIncludePaths.Add("D:/_proj/UE4/Fun/F/Source/F/ThirdParty/discord-files");
+		// Add Discord library
+		PublicAdditionalLibraries.Add("D:/_proj/UE4/Fun/F/Binaries/Win64/discord_game_sdk.dll.lib");
+		// Ensure Discord dll is added to the cooked project
+		RuntimeDependencies.Add("D:/_proj/UE4/Fun/F/Binaries/Win64/discord_game_sdk.dll");
 
         PrivateDependencyModuleNames.AddRange(new string[] {  });
 

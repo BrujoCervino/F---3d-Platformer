@@ -43,22 +43,22 @@ private:
 
 	// The pivot of this entrance: without it, the doors would move (undesirably) relatively to each other.
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
-		USceneComponent* SharedRoot;
+	USceneComponent* SharedRoot;
 
 	// The mesh associated with the left door of this entrance
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
-		UStaticMeshComponent* LeftDoorMesh;
+	UStaticMeshComponent* LeftDoorMesh;
 
 	// The mesh associated with the right door of this entrance
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
-		UStaticMeshComponent* RightDoorMesh;
+	UStaticMeshComponent* RightDoorMesh;
 
 	// The level to which this entrance sends the player	
 	UPROPERTY(EditInstanceOnly, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
-		FName LevelToOpen;
+	FName LevelToOpen;
 
 	// Whether this door is locked.
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
-		uint32 bLocked : 1;
+	uint32 bLocked : 1;
 
 };

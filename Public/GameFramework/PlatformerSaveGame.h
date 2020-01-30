@@ -19,15 +19,25 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category="Abilities")
 	uint32 bShrinkUnlocked : 1;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Abilities")
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Collectables")
 	int32 SkillPointsEarnt;
 	
-	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Abilities")
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Collectables")
 	int32 SkillPointsSpent;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Abilities")
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Collectables")
 	int32 Keys;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, meta = (BlueprintProtected = "true"))
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Collectables")
 	int32 SecretKeys;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Collectables")
+	int32 Orbs;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Collectables")
+	int32 Flies;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Collectables")
+	int32 Cells;
+
 };
